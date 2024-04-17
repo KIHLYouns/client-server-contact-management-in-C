@@ -137,17 +137,16 @@ bool authenticateUser(int connfd, char *role)
         char storedUsername[20], storedPassword[20], storedRole[10];
         if (sscanf(line, "%s %s %s", storedUsername, storedPassword, storedRole) == 3)
         {
-            printf("Received: %s %s\n", login.username, login.password); 
-            printf("Stored: %s %s %s\n", storedUsername, storedPassword, storedRole);
-
             // 4. comparison 
             if (strcmp(storedUsername, login.username) == 0 &&
                 strcmp(storedPassword, login.password) == 0)
             {
                 strcpy(role, storedRole); // Copy the role into the output parameter
-                printf("Assigning role '%s' to the client.\n", role);
                 fclose(usersFile);
-                write(connfd, "1", 1); // Send success indicator to the client
+
+                char response[20]; 
+                sprintf(response, "1%s", role); 
+                write(connfd, response, strlen(response));
                 return true;
             }
         }

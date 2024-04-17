@@ -239,7 +239,7 @@ int login(int sockfd, char *role)
     char *response = receiveMessage(sockfd);
 
     printf("Server response: '%s'\n", response);
-    
+
     if (response == NULL)
     {
         printf("Error receiving authentication response.\n");
@@ -249,9 +249,16 @@ int login(int sockfd, char *role)
     if (response[0] == '1')
     {
         printf("Login successful!\n");
+
+        // Extract the role from the response
+        strncpy(role, response + 1, strlen(response) - 1); // Copy the role part of the string
+        role[strlen(response) - 1] = '\0';                 // Ensure null termination
+
+        printf("Role : %s'\n", role);
         free(response);
         return 1; // Signify successful login
     }
+
     else
     {
         printf("Invalid username or password.\n");
@@ -262,6 +269,7 @@ int login(int sockfd, char *role)
 
 void displayMenu(const char *role)
 {
+    printf("displayMenu called with role: %s\n", role);
     printf("\n----- Contact Manager -----\n");
     if (strcmp(role, "admin") == 0)
     {
