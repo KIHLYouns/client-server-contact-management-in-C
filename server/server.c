@@ -129,6 +129,7 @@ bool authenticateUser(int connfd, char *role)
         return false;
     }
 
+    printf("Trying to open file: %s\n", USERS_FILE);
     // 3. Iterate through the file and compare credentials
     char line[100];
     while (fgets(line, sizeof(line), usersFile) != NULL)
@@ -136,6 +137,8 @@ bool authenticateUser(int connfd, char *role)
         char storedUsername[20], storedPassword[20], storedRole[10];
         if (sscanf(line, "%s %s %s", storedUsername, storedPassword, storedRole) == 3)
         {
+            printf("Received: %s %s\n", login.username, login.password); 
+            printf("Stored: %s %s %s\n", storedUsername, storedPassword, storedRole);
 
             // 4. Basic comparison (consider password hashing!)
             if (strcmp(storedUsername, login.username) == 0 &&

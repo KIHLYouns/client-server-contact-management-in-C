@@ -43,14 +43,23 @@ int getMenuChoice();
 void addContact(int sockfd);
 int sendMessage(int sockfd, char *message)
 {
-    int bytes_sent = send(sockfd, message, strlen(message), 0);
-    if (bytes_sent != strlen(message))
+    int bytes_sent = 0;
+    int total_length = strlen(message);
+
+    while (bytes_sent < total_length)
     {
-        perror("send error");
-        return -1; // Indicate that there was an error
+        int sent_now = send(sockfd, message + bytes_sent, total_length - bytes_sent, 0);
+        if (sent_now == -1)
+        {
+            perror("send error");
+            return -1;
+        }
+        bytes_sent += sent_now;
     }
-    return 0; // Signify success
+
+    return 0;
 }
+
 char *receiveMessage(int sockfd)
 {
     char *buffer = malloc(MAX_MESSAGE_SIZE);
