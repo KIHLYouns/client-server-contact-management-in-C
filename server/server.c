@@ -140,11 +140,12 @@ bool authenticateUser(int connfd, char *role)
             printf("Received: %s %s\n", login.username, login.password); 
             printf("Stored: %s %s %s\n", storedUsername, storedPassword, storedRole);
 
-            // 4. Basic comparison (consider password hashing!)
+            // 4. comparison 
             if (strcmp(storedUsername, login.username) == 0 &&
                 strcmp(storedPassword, login.password) == 0)
             {
                 strcpy(role, storedRole); // Copy the role into the output parameter
+                printf("Assigning role '%s' to the client.\n", role);
                 fclose(usersFile);
                 write(connfd, "1", 1); // Send success indicator to the client
                 return true;

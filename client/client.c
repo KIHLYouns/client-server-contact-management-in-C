@@ -237,6 +237,9 @@ int login(int sockfd, char *role)
 
     // Receive authentication response from the server
     char *response = receiveMessage(sockfd);
+
+    printf("Server response: '%s'\n", response);
+    
     if (response == NULL)
     {
         printf("Error receiving authentication response.\n");
