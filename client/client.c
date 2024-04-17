@@ -41,19 +41,21 @@ int login(int sockfd, char *role);
 void displayMenu(const char *role);
 int getMenuChoice();
 void addContact(int sockfd);
-int sendMessage(int sockfd, char *message)
+
+int sendMessage(int sockfd, const void *message, size_t length)
 {
     int bytes_sent = 0;
-    int total_length = strlen(message);
 
-    while (bytes_sent < total_length)
+    while (bytes_sent < length)
     {
-        int sent_now = send(sockfd, message + bytes_sent, total_length - bytes_sent, 0);
+        int sent_now = send(sockfd, (const char *)message + bytes_sent, length - bytes_sent, 0);
+
         if (sent_now == -1)
         {
             perror("send error");
             return -1;
         }
+
         bytes_sent += sent_now;
     }
 
@@ -227,7 +229,7 @@ int login(int sockfd, char *role)
     loginCredentials.password[strcspn(loginCredentials.password, "\n")] = 0;
 
     // Send login credentials to the server
-    if (sendMessage(sockfd, &loginCredentials) != 0)
+    if (sendMessage(sockfd, &loginCredentials, sizeof(Login)) != 0)
     {
         printf("Error sending login credentials.\n");
         return -1;
@@ -320,7 +322,8 @@ void addContact(int sockfd)
             newContact.adr.rue, newContact.adr.ville, newContact.adr.pays);
 
     // Send to  server
-    if (sendMessage(sockfd, message) != 0)
+    int length = strlen(message);
+    if (sendMessage(sockfd, message, length) != 0)
     {
         printf("Error sending contact data.\n");
         return;
