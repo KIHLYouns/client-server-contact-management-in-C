@@ -38,7 +38,7 @@ typedef struct
 // Function prototypes
 void processClientRequest(int client_sockfd, char *role);
 bool authenticateUser(int connfd, char *role);
-void addContact(int client_sockfd, Contact contact);
+void addContact(Contact contact);
 // ... other contact management functions
 
 int main()
@@ -86,7 +86,10 @@ int main()
     while (true)
     {
         // Accept a connection
+        struct sockaddr_in cli;      // Client address structure
+        socklen_t len = sizeof(cli); // Size of the client address structure
         int client_sockfd = accept(server_sockfd, (struct sockaddr *)&cli, &len);
+
         if (client_sockfd < 0)
         {
             printf("Server accept failed...\n");
@@ -171,43 +174,51 @@ void processClientRequest(int client_sockfd, char *role)
         switch (message[0])
         {         // Assuming the first byte of the message indicates the command
         case '1': // Add contact
+        {
             Contact newContact;
             if (recv(client_sockfd, &newContact, sizeof(Contact), 0) > 0)
             {
-                addContact(client_sockfd, newContact);
+                addContact(newContact);
                 break;
             }
-        case '2': // Search contact
-            searchContact(client_sockfd);
-            break;
-        // ... cases for edit, delete, display ...
-        default:
-            sendErrorMessage(client_sockfd, "Invalid command");
+            /*
+            case '2': // Search contact
+                searchContact(client_sockfd);
+                break;
+            // ... cases for edit, delete, display ...
+            default:
+                sendErrorMessage(client_sockfd, "Invalid command");
+            */
+        }
         }
     }
+
     else if (strcmp(role, "guest") == 0)
     {
         // Handle guest-specific commands
         switch (message[0])
         {
-        case '2': // Search contact
-            searchContact(client_sockfd);
-            break;
-        case '5': // Display all contacts
-            displayContacts(client_sockfd);
-            break;
-        default:
-            sendErrorMessage(client_sockfd, "Invalid command");
+            /* case '2': // Search contact
+                searchContact(client_sockfd);
+                break;
+            case '5': // Display all contacts
+                displayContacts(client_sockfd);
+                break;
+            default:
+                sendErrorMessage(client_sockfd, "Invalid command");
+
+            }
+        }
+        else
+        {
+            // Handle invalid role (unexpected if your setup is correct)
+            sendErrorMessage(client_sockfd, "Invalid role");
+        }
+        */
         }
     }
-    else
-    {
-        // Handle invalid role (unexpected if your setup is correct)
-        sendErrorMessage(client_sockfd, "Invalid role");
-    }
 }
-
-void addContact(int client_sockfd, Contact contact)
+void addContact(Contact contact)
 {
     // Receive the contact data from the client (already done on the client-side)
 
