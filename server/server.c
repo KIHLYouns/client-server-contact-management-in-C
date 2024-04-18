@@ -221,6 +221,7 @@ void processClientRequest(int client_sockfd, char *role)
         }
     }
 }
+
 void addContact(Contact contact)
 {
     // Receive the contact data from the client (already done on the client-side)
@@ -254,4 +255,3 @@ void addContact(Contact contact)
     close(fd);
 }
 
-// ... Implementations of processClientRequest, addContact, etc.
