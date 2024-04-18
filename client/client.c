@@ -1,4 +1,3 @@
-#include <netdb.h> // For getaddrinfo
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,6 +7,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
+#include <netdb.h> 
 
 #define PORT "8080"
 #define CONTACTS_FILE "contacts.txt"
@@ -36,7 +36,7 @@ typedef struct
     Address adr;
 } Contact;
 
-int connectToServer(); // Prototype for connectToServer
+int connectToServer(); 
 int login(int sockfd, char *role);
 void displayMenu(const char *role);
 int getMenuChoice();
@@ -44,21 +44,11 @@ void addContact(int sockfd);
 
 int sendMessage(int sockfd, const void *message, size_t length)
 {
-    int bytes_sent = 0;
-
-    while (bytes_sent < length)
+    int bytes_sent = send(sockfd, (const char *)message, length, 0);
+    if (bytes_sent != length)
     {
-        int sent_now = send(sockfd, (const char *)message + bytes_sent, length - bytes_sent, 0);
-
-        if (sent_now == -1)
-        {
-            perror("send error");
-            return -1;
-        }
-
-        bytes_sent += sent_now;
+        return -1;
     }
-
     return 0;
 }
 
@@ -66,29 +56,17 @@ char *receiveMessage(int sockfd)
 {
     char *buffer = malloc(MAX_MESSAGE_SIZE);
     if (buffer == NULL)
-    {
-        fprintf(stderr, "Memory allocation error.\n");
-        return NULL;
-    }
+        return NULL; 
 
     int bytes_received = recv(sockfd, buffer, MAX_MESSAGE_SIZE, 0);
-    if (bytes_received < 0)
+    if (bytes_received <= 0)
     {
-        perror("recv error");
         free(buffer);
-        return NULL;
+        return NULL; 
     }
-    else if (bytes_received == 0)
-    {
-        printf("Server closed the connection.\n");
-        free(buffer);
-        return NULL;
-    }
-    else
-    {
-        buffer[bytes_received] = '\0'; // Null-terminate the received string
-        return buffer;
-    }
+
+    buffer[bytes_received] = '\0';
+    return buffer;
 }
 
 int main()
@@ -237,7 +215,6 @@ int login(int sockfd, char *role)
 
     // Receive authentication response from the server
     char *response = receiveMessage(sockfd);
-
 
     if (response == NULL)
     {
