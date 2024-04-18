@@ -238,7 +238,6 @@ int login(int sockfd, char *role)
     // Receive authentication response from the server
     char *response = receiveMessage(sockfd);
 
-    printf("Server response: '%s'\n", response);
 
     if (response == NULL)
     {
@@ -254,7 +253,6 @@ int login(int sockfd, char *role)
         strncpy(role, response + 1, strlen(response) - 1); // Copy the role part of the string
         role[strlen(response) - 1] = '\0';                 // Ensure null termination
 
-        printf("Role : %s'\n", role);
         free(response);
         return 1; // Signify successful login
     }
@@ -269,7 +267,7 @@ int login(int sockfd, char *role)
 
 void displayMenu(const char *role)
 {
-    printf("displayMenu called with role: %s\n", role);
+    printf("Role : %s\n", role);
     printf("\n----- Contact Manager -----\n");
     if (strcmp(role, "admin") == 0)
     {
