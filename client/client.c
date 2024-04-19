@@ -41,6 +41,54 @@ void displayMenu(const char *role);
 int getMenuChoice();
 void addContact(int sockfd);
 
+int sendMessage(int sockfd, const void *message, size_t length);
+char *receiveMessage(int sockfd);
+
+int main()
+{
+    char role[10];
+    const char *serverIP = "127.0.0.1";
+    int serverPort = 8080;
+
+    int sockfd = connectToServer(serverIP, serverPort);
+    if (sockfd < 0)
+    {
+        printf("Connection failed.\n");
+        return -1;
+    }
+
+    if (!login(sockfd, role))
+    {
+        printf("Login failed. Exiting.\n");
+        close(sockfd);
+        return -1;
+    }
+
+    int choice;
+    do
+    {
+        displayMenu(role);
+        choice = getMenuChoice();
+
+        switch (choice)
+        {
+        case 1:
+            addContact(sockfd);
+            break;
+        // ... other cases ...
+        case 0:
+            printf("Exiting...\n");
+            break;
+        default:
+            printf("Invalid option.\n");
+            break;
+        }
+    } while (choice != 0);
+
+    close(sockfd);
+    return 0;
+}
+
 int sendMessage(int sockfd, const void *message, size_t length)
 {
     int bytes_sent = send(sockfd, (const char *)message, length, 0);
@@ -66,51 +114,6 @@ char *receiveMessage(int sockfd)
 
     buffer[bytes_received] = '\0';
     return buffer;
-}
-
-int main()
-{
-    char role[10];
-    const char *serverIP = "127.0.0.1";
-    int serverPort = 8080;
-
-    int sockfd = connectToServer(serverIP, serverPort);
-    if (sockfd < 0)
-    {
-        printf("Connection failed.\n");
-        return -1;
-    }
-
-    if (!login(sockfd, role))
-    {
-        printf("Login failed. Exiting.\n");
-        close(sockfd);
-        return -1;
-    }
-
-    int choice;
-    do
-    {
-        displayMenu(role); 
-        choice = getMenuChoice();
-
-        switch (choice)
-        {
-        case 1:
-            addContact(sockfd);
-            break;
-        // ... other cases ...
-        case 0:
-            printf("Exiting...\n");
-            break;
-        default:
-            printf("Invalid option.\n");
-            break;
-        }
-    } while (choice != 0);
-
-    close(sockfd);
-    return 0;
 }
 
 int connectToServer(const char *serverIP, int serverPort)
@@ -197,8 +200,8 @@ int login(int sockfd, char *role)
             if (strcmp(choice, "EXIT") == 0)
             {
                 printf("Exiting...\n");
-                close(sockfd); 
-                return 0;     
+                close(sockfd);
+                return 0;
             }
         }
     }
@@ -214,7 +217,7 @@ void displayMenu(const char *role)
     {
         printf("\n1. Add Contact\n");
         printf("2. Search Contact\n");
-        printf("3. Edit Contact\n"); 
+        printf("3. Edit Contact\n");
         printf("4. Delete Contact\n");
         printf("5. Display All Contacts\n");
     }
@@ -233,10 +236,11 @@ int getMenuChoice()
     while (scanf("%d", &choice) != 1 || choice < 0)
     {
         printf("Invalid choice. Please enter a number: ");
-        fflush(stdin); 
+        fflush(stdin);
     }
     return choice;
 }
 
 void addContact(int sockfd)
-{}
+{
+}

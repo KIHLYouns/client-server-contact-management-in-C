@@ -38,41 +38,10 @@ typedef struct
 void processClientRequest(int clientSockfd, char *role);
 bool authenticateUser(int clientSockfd, char *role);
 void addContact(Contact contact);
-int sendMessage(int sockfd, const void *message, size_t length)
-{
-    int bytes_sent = send(sockfd, (const char *)message, length, 0);
-    if (bytes_sent != length)
-    {
-        return -1;
-    }
-    return 0;
-}
 
-char *receiveMessage(int sockfd)
-{
-    char *buffer = malloc(MAX_MESSAGE_SIZE);
-    if (buffer == NULL)
-        return NULL;
-
-    int bytes_received = recv(sockfd, buffer, MAX_MESSAGE_SIZE, 0);
-    if (bytes_received <= 0)
-    {
-        free(buffer);
-        return NULL;
-    }
-
-    buffer[bytes_received] = '\0';
-    return buffer;
-}
-
-bool shouldContinue(int clientSockfd)
-{
-    char buffer[10];
-    int bytes_received = recv(clientSockfd, buffer, sizeof(buffer), 0);
-    if (bytes_received <= 0)
-        return false;
-    return strcmp(buffer, "RETRY") == 0;
-}
+int sendMessage(int sockfd, const void *message, size_t length);
+char *receiveMessage(int sockfd);
+bool shouldContinue(int clientSockfd);
 
 int main()
 {
@@ -136,8 +105,8 @@ int main()
                 char role[10];
                 if (authenticateUser(clientSockfd, role))
                 {
-                printf("User authenticated with role: %s\n", role);
-                processClientRequest(clientSockfd, role);
+                    printf("User authenticated with role: %s\n", role);
+                    processClientRequest(clientSockfd, role);
                 }
 
             } while (shouldContinue(clientSockfd));
@@ -145,6 +114,33 @@ int main()
             close(clientSockfd);
         }
     }
+}
+
+int sendMessage(int sockfd, const void *message, size_t length)
+{
+    int bytes_sent = send(sockfd, (const char *)message, length, 0);
+    if (bytes_sent != length)
+    {
+        return -1;
+    }
+    return 0;
+}
+
+char *receiveMessage(int sockfd)
+{
+    char *buffer = malloc(MAX_MESSAGE_SIZE);
+    if (buffer == NULL)
+        return NULL;
+
+    int bytes_received = recv(sockfd, buffer, MAX_MESSAGE_SIZE, 0);
+    if (bytes_received <= 0)
+    {
+        free(buffer);
+        return NULL;
+    }
+
+    buffer[bytes_received] = '\0';
+    return buffer;
 }
 
 bool authenticateUser(int clientSockfd, char *role)
@@ -186,6 +182,17 @@ bool authenticateUser(int clientSockfd, char *role)
     return false;
 }
 
+bool shouldContinue(int clientSockfd)
+{
+    char buffer[10];
+    int bytes_received = recv(clientSockfd, buffer, sizeof(buffer), 0);
+    if (bytes_received <= 0)
+    {
+        return false;
+    }
+    return strcmp(buffer, "RETRY") == 0;
+}
+
 void processClientRequest(int clientSockfd, char *role)
 {
     char message[MAX_MESSAGE_SIZE];
@@ -212,9 +219,9 @@ void processClientRequest(int clientSockfd, char *role)
 
         break;
         // ... cases for edit, delete, display ...
-    
     }
 }
 
 void addContact(Contact contact)
-{}
+{
+}
