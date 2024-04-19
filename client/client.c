@@ -7,9 +7,8 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
-#include <netdb.h> 
+#include <netdb.h>
 
-#define PORT "8080"
 #define CONTACTS_FILE "contacts.txt"
 #define USERS_FILE "users.txt"
 #define MAX_MESSAGE_SIZE 256
@@ -36,7 +35,7 @@ typedef struct
     Address adr;
 } Contact;
 
-int connectToServer(); 
+int connectToServer(const char *serverIP, int serverPort);
 int login(int sockfd, char *role);
 void displayMenu(const char *role);
 int getMenuChoice();
@@ -56,13 +55,13 @@ char *receiveMessage(int sockfd)
 {
     char *buffer = malloc(MAX_MESSAGE_SIZE);
     if (buffer == NULL)
-        return NULL; 
+        return NULL;
 
     int bytes_received = recv(sockfd, buffer, MAX_MESSAGE_SIZE, 0);
     if (bytes_received <= 0)
     {
         free(buffer);
-        return NULL; 
+        return NULL;
     }
 
     buffer[bytes_received] = '\0';
@@ -71,59 +70,34 @@ char *receiveMessage(int sockfd)
 
 int main()
 {
-    int sockfd = -1;
     char role[10];
-    int maxConnectionAttempts = 3; // Customize as needed
+    const char *serverIP = "127.0.0.1";
+    int serverPort = 8080;
 
-    // Connection & Login
-    for (int attempt = 0; attempt < maxConnectionAttempts; attempt++)
+    int sockfd = connectToServer(serverIP, serverPort);
+    if (sockfd < 0)
     {
-        sockfd = connectToServer();
-        if (sockfd >= 0)
-        { // Successful connection
-            if (login(sockfd, role))
-            {
-                break; // Proceed on successful login
-            }
-            else
-            {
-                close(sockfd); // Close on failed login attempt
-                printf("Login failed. ");
-                if (attempt < maxConnectionAttempts - 1)
-                {
-                    printf("Retrying...\n");
-                }
-                else
-                {
-                    printf("Exiting.\n");
-                    return -1;
-                }
-            }
-        }
-        else
-        {
-            printf("Connection attempt %d failed.\n", attempt + 1);
-        }
+        printf("Connection failed.\n");
+        return -1;
     }
 
-    // Main client operation loop (assuming successful login)
+    if (!login(sockfd, role))
+    {
+        printf("Login failed. Exiting.\n");
+        close(sockfd);
+        return -1;
+    }
+
     int choice;
     do
     {
-        displayMenu(role); // Pass the role to customize the menu
+        displayMenu(role); 
         choice = getMenuChoice();
 
         switch (choice)
         {
         case 1:
-            if (strcmp(role, "admin") == 0)
-            {
-                addContact(sockfd);
-            }
-            else
-            {
-                printf("Unauthorized for this action.\n");
-            }
+            addContact(sockfd);
             break;
         // ... other cases ...
         case 0:
@@ -139,128 +113,118 @@ int main()
     return 0;
 }
 
-int connectToServer()
+int connectToServer(const char *serverIP, int serverPort)
 {
-    int sockfd;
-    struct addrinfo hints, *serverInfo, *p;
-    int connectionAttempts = 0;
-    int maxAttempts = 3; // Adjust the maximum number of attempts as needed
-
-    memset(&hints, 0, sizeof hints);
-    hints.ai_family = AF_INET; // IPv4
-    hints.ai_socktype = SOCK_STREAM;
-
-    while (connectionAttempts < maxAttempts)
+    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd == -1)
     {
-        // Resolve the hostname (`getaddrinfo`)
-        if (getaddrinfo("localhost", PORT, &hints, &serverInfo) != 0)
-        {
-            perror("getaddrinfo error");
-            return -1;
-        }
-
-        // Iterate through the results and try to connect
-        for (p = serverInfo; p != NULL; p = p->ai_next)
-        {
-            if ((sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1)
-            {
-                perror("socket error");
-                continue;
-            }
-
-            if (connect(sockfd, p->ai_addr, p->ai_addrlen) == -1)
-            {
-                close(sockfd);
-                perror("connect error");
-                continue;
-            }
-
-            // Successful connection
-            freeaddrinfo(serverInfo);
-            return sockfd;
-        }
-
-        freeaddrinfo(serverInfo);
-        connectionAttempts++;
-
-        if (connectionAttempts < maxAttempts)
-        {
-            printf("Connection failed. Retrying in 5 seconds...\n");
-            sleep(5); // Delay before retrying
-        }
+        perror("socket creation failed");
+        return -1;
     }
 
-    printf("Cannot connect to server.\n");
-    return -1;
+    struct sockaddr_in serverAddress;
+    memset(&serverAddress, 0, sizeof(serverAddress));
+    serverAddress.sin_family = AF_INET;
+    serverAddress.sin_port = htons(serverPort);
+
+    if (inet_aton(serverIP, &serverAddress.sin_addr) == 0)
+    {
+        perror("Invalid IP address");
+        close(sockfd);
+        return -1;
+    }
+
+    if (connect(sockfd, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) != 0)
+    {
+        perror("Connection failed");
+        close(sockfd);
+        return -1;
+    }
+
+    printf("Connected to server!\n");
+    return sockfd;
 }
 
 int login(int sockfd, char *role)
 {
     Login loginCredentials;
 
-    printf("Enter username: ");
-    fgets(loginCredentials.username, sizeof(loginCredentials.username), stdin);
-    loginCredentials.username[strcspn(loginCredentials.username, "\n")] = 0; // Remove trailing newline
-
-    printf("Enter password: ");
-    fgets(loginCredentials.password, sizeof(loginCredentials.password), stdin);
-    loginCredentials.password[strcspn(loginCredentials.password, "\n")] = 0;
-
-    // Send login credentials to the server
-    if (sendMessage(sockfd, &loginCredentials, sizeof(Login)) != 0)
+    for (int passwordAttempt = 0; passwordAttempt < 3; passwordAttempt++)
     {
-        printf("Error sending login credentials.\n");
-        return -1;
+        printf("Enter username: ");
+        fgets(loginCredentials.username, sizeof(loginCredentials.username), stdin);
+        loginCredentials.username[strcspn(loginCredentials.username, "\n")] = 0;
+        printf("Enter password: ");
+        fgets(loginCredentials.password, sizeof(loginCredentials.password), stdin);
+        loginCredentials.password[strcspn(loginCredentials.password, "\n")] = 0;
+
+        if (sendMessage(sockfd, &loginCredentials, sizeof(Login)) != 0)
+        {
+            printf("Error sending login credentials.\n");
+            continue;
+        }
+
+        char *response = receiveMessage(sockfd);
+
+        if (response == NULL)
+        {
+            printf("Error receiving authentication response.\n");
+            continue;
+        }
+
+        if (response[0] == '1')
+        {
+            printf("Login successful!\n");
+
+            strncpy(role, response + 1, strlen(response) - 1);
+            role[strlen(response) - 1] = '\0';
+
+            free(response);
+            return 1;
+        }
+
+        if (response[0] == '0')
+        { // Authentication failed
+            printf("Invalid username or password...\n");
+
+            char choice[10];
+            printf("Try again? (RETRY/EXIT): ");
+            fgets(choice, sizeof(choice), stdin);
+            choice[strcspn(choice, "\n")] = 0;
+
+            sendMessage(sockfd, choice, strlen(choice));
+
+            if (strcmp(choice, "EXIT") == 0)
+            {
+                printf("Exiting...\n");
+                close(sockfd); 
+                return 0;     
+            }
+        }
     }
-
-    // Receive authentication response from the server
-    char *response = receiveMessage(sockfd);
-
-    if (response == NULL)
-    {
-        printf("Error receiving authentication response.\n");
-        return -1;
-    }
-
-    if (response[0] == '1')
-    {
-        printf("Login successful!\n");
-
-        // Extract the role from the response
-        strncpy(role, response + 1, strlen(response) - 1); // Copy the role part of the string
-        role[strlen(response) - 1] = '\0';                 // Ensure null termination
-
-        free(response);
-        return 1; // Signify successful login
-    }
-
-    else
-    {
-        printf("Invalid username or password.\n");
-        free(response);
-        return 0; // Signify failed login
-    }
+    printf("Too many incorrect password attempts. Exiting.\n");
+    return 0;
 }
 
 void displayMenu(const char *role)
 {
-    printf("Role : %s\n", role);
+    printf("\n----- Role : %s -----\n", role);
     printf("\n----- Contact Manager -----\n");
     if (strcmp(role, "admin") == 0)
     {
-        printf("1. Add Contact\n");
+        printf("\n1. Add Contact\n");
         printf("2. Search Contact\n");
-        printf("3. Edit Contact\n"); // Adapt the options as needed
+        printf("3. Edit Contact\n"); 
         printf("4. Delete Contact\n");
         printf("5. Display All Contacts\n");
     }
     else
     { // Guest role
-        printf("1. Search Contact\n");
+        printf("\n1. Search Contact\n");
         printf("2. Display All Contacts\n");
     }
     printf("0. Exit\n");
-    printf("Enter your choice: ");
+    printf("\nEnter your choice: ");
 }
 
 int getMenuChoice()

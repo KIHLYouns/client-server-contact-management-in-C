@@ -36,16 +36,52 @@ typedef struct
 } Contact;
 
 // Function prototypes
-void processClientRequest(int client_sockfd, char *role);
-bool authenticateUser(int connfd, char *role);
+void processClientRequest(int clientSockfd, char *role);
+bool authenticateUser(int clientSockfd, char *role);
 void addContact(Contact contact);
+int sendMessage(int sockfd, const void *message, size_t length)
+{
+    int bytes_sent = send(sockfd, (const char *)message, length, 0);
+    if (bytes_sent != length)
+    {
+        return -1;
+    }
+    return 0;
+}
+
+char *receiveMessage(int sockfd)
+{
+    char *buffer = malloc(MAX_MESSAGE_SIZE);
+    if (buffer == NULL)
+        return NULL;
+
+    int bytes_received = recv(sockfd, buffer, MAX_MESSAGE_SIZE, 0);
+    if (bytes_received <= 0)
+    {
+        free(buffer);
+        return NULL;
+    }
+
+    buffer[bytes_received] = '\0';
+    return buffer;
+}
 // ... other contact management functions
+
+bool shouldContinueServingClient(int clientSockfd)
+{
+    char buffer[10];
+    int bytes_received = recv(clientSockfd, buffer, sizeof(buffer), 0);
+    if (bytes_received <= 0)
+        return false;
+    return strcmp(buffer, "RETRY") == 0;
+    
+}
 
 int main()
 {
     // 1. Create a socket
-    int server_sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_sockfd == -1)
+    int serverSockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (serverSockfd == -1)
     {
         printf("Socket creation failed...\n");
         exit(0);
@@ -55,14 +91,14 @@ int main()
         printf("Socket successfully created..\n");
     }
 
-    // 2. Prepare the server address structure (sockaddr_in)
-    struct sockaddr_in serv_addr;
-    serv_addr.sin_family = AF_INET;         // IPv4 address family
-    serv_addr.sin_addr.s_addr = INADDR_ANY; // Accept connections on any interface
-    serv_addr.sin_port = htons(PORT);       // Convert port number to network byte order
+    // 2. Prepare the server address structure
+    struct sockaddr_in serverAddress;
+    serverAddress.sin_family = AF_INET;
+    serverAddress.sin_addr.s_addr = inet_addr("127.0.0.1");
+    serverAddress.sin_port = htons(8080);
 
-    // 3. Bind the socket to the specified IP address and port
-    if (bind(server_sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) != 0)
+    // 3. Bind the socket
+    if (bind(serverSockfd, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) != 0)
     {
         printf("Socket bind failed...\n");
         exit(0);
@@ -73,7 +109,7 @@ int main()
     }
 
     // 4. Enable the socket to listen for connections
-    if (listen(server_sockfd, 5) != 0)
+    if (listen(serverSockfd, 5) != 0)
     {
         printf("Listen failed...\n");
         exit(0);
@@ -83,43 +119,48 @@ int main()
         printf("Server listening..\n");
     }
 
+    // 5. Accept connections (loop)
     while (true)
     {
-        // Accept a connection
-        struct sockaddr_in cli;      // Client address structure
-        socklen_t len = sizeof(cli); // Size of the client address structure
-        int client_sockfd = accept(server_sockfd, (struct sockaddr *)&cli, &len);
+        struct sockaddr_in clientAddress;
+        socklen_t len = sizeof(clientAddress);
+        int clientSockfd = accept(serverSockfd, (struct sockaddr *)&clientAddress, &len);
 
-        if (client_sockfd < 0)
+        if (clientSockfd < 0)
         {
             printf("Server accept failed...\n");
-            exit(0);
+            // Consider adding more specific error handling here
         }
         else
         {
             printf("Server accepted the client...\n");
-        }
+            // Authentication & Request Handling (Repeated)
+            do
+            {
+                char role[10];
+                if (authenticateUser(clientSockfd, role))
+                {
+                    printf("User authenticated with role: %s\n", role);
+                    processClientRequest(clientSockfd, role);
+                }
+                else
+                {
+                    // Handle authentication failure
+                }
+            } while (shouldContinueServingClient(clientSockfd));
 
-        char role[10]; // To store the user's role
-        if (authenticateUser(client_sockfd, role))
-        {
-            printf("User authenticated with role: %s\n", role);
-            processClientRequest(client_sockfd, role); // Send the role to processClientRequest
+            close(clientSockfd);
         }
-        else
-        {
-            // ... authentication failure ...
-        }
-
-        // ... close the client socket ...
     }
 }
 
-bool authenticateUser(int connfd, char *role)
+bool authenticateUser(int clientSockfd, char *role)
 {
     // 1. Receive login credentials from the client
-    Login login;
-    read(connfd, &login, sizeof(Login));
+    char *response = receiveMessage(clientSockfd);
+    Login loginCredentials;
+    memcpy(&loginCredentials, response, sizeof(Login));
+    free(response);
 
     // 2. Open the USERS_FILE
     FILE *usersFile = fopen(USERS_FILE, "r");
@@ -137,16 +178,16 @@ bool authenticateUser(int connfd, char *role)
         char storedUsername[20], storedPassword[20], storedRole[10];
         if (sscanf(line, "%s %s %s", storedUsername, storedPassword, storedRole) == 3)
         {
-            // 4. comparison 
-            if (strcmp(storedUsername, login.username) == 0 &&
-                strcmp(storedPassword, login.password) == 0)
+            // 4. comparison
+            if (strcmp(storedUsername, loginCredentials.username) == 0 &&
+                strcmp(storedPassword, loginCredentials.password) == 0)
             {
                 strcpy(role, storedRole); // Copy the role into the output parameter
                 fclose(usersFile);
 
-                char response[20]; 
-                sprintf(response, "1%s", role); 
-                write(connfd, response, strlen(response));
+                char response[20];
+                sprintf(response, "1%s", role);
+                write(clientSockfd, response, strlen(response));
                 return true;
             }
         }
@@ -154,14 +195,15 @@ bool authenticateUser(int connfd, char *role)
 
     // 5. Authentication failed
     fclose(usersFile);
-    write(connfd, "0", 1); // Send failure indicator to the client
+    write(clientSockfd, "0", 1); // Send failure indicator to the client
+    printf("Server sent authentication response.\n");
     return false;
 }
 
-void processClientRequest(int client_sockfd, char *role)
+void processClientRequest(int clientSockfd, char *role)
 {
     char message[MAX_MESSAGE_SIZE];
-    int bytes_received = recv(client_sockfd, message, MAX_MESSAGE_SIZE, 0);
+    int bytes_received = recv(clientSockfd, message, MAX_MESSAGE_SIZE, 0);
 
     if (bytes_received <= 0)
     {
@@ -179,18 +221,18 @@ void processClientRequest(int client_sockfd, char *role)
         case '1': // Add contact
         {
             Contact newContact;
-            if (recv(client_sockfd, &newContact, sizeof(Contact), 0) > 0)
+            if (recv(clientSockfd, &newContact, sizeof(Contact), 0) > 0)
             {
                 addContact(newContact);
                 break;
             }
             /*
             case '2': // Search contact
-                searchContact(client_sockfd);
+                searchContact(clientSockfd);
                 break;
             // ... cases for edit, delete, display ...
             default:
-                sendErrorMessage(client_sockfd, "Invalid command");
+                sendErrorMessage(clientSockfd, "Invalid command");
             */
         }
         }
@@ -202,20 +244,20 @@ void processClientRequest(int client_sockfd, char *role)
         switch (message[0])
         {
             /* case '2': // Search contact
-                searchContact(client_sockfd);
+                searchContact(clientSockfd);
                 break;
             case '5': // Display all contacts
-                displayContacts(client_sockfd);
+                displayContacts(clientSockfd);
                 break;
             default:
-                sendErrorMessage(client_sockfd, "Invalid command");
+                sendErrorMessage(clientSockfd, "Invalid command");
 
             }
         }
         else
         {
             // Handle invalid role (unexpected if your setup is correct)
-            sendErrorMessage(client_sockfd, "Invalid role");
+            sendErrorMessage(clientSockfd, "Invalid role");
         }
         */
         }
@@ -254,4 +296,3 @@ void addContact(Contact contact)
 
     close(fd);
 }
-
