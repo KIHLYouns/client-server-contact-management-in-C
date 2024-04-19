@@ -35,8 +35,8 @@ typedef struct
 } Contact;
 
 // Function prototypes
-void processClientRequest(int clientSockfd, char *role);
 bool authenticateUser(int clientSockfd, char *role);
+void processClientRequest(int clientSockfd, char *role);
 void addContact(Contact contact);
 
 int sendMessage(int sockfd, const void *message, size_t length);

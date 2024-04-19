@@ -193,7 +193,6 @@ int login(int sockfd, char *role)
             char choice[10];
             printf("Try again? (RETRY/EXIT): ");
             fgets(choice, sizeof(choice), stdin);
-            choice[strcspn(choice, "\n")] = 0;
 
             sendMessage(sockfd, choice, strlen(choice));
 
@@ -235,7 +234,7 @@ int getMenuChoice()
     int choice;
     while (scanf("%d", &choice) != 1 || choice < 0)
     {
-        printf("Invalid choice. Please enter a number: ");
+        printf("Invalid choice. Please enter a valid number: ");
         fflush(stdin);
     }
     return choice;
