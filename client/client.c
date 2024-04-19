@@ -184,7 +184,7 @@ int login(int sockfd, char *role)
         }
 
         if (response[0] == '0')
-        { // Authentication failed
+        {
             printf("Invalid username or password...\n");
 
             char choice[10];
@@ -208,7 +208,7 @@ int login(int sockfd, char *role)
 
 void displayMenu(const char *role)
 {
-    printf("\n----- Role : %s -----\n", role);
+    printf("\n------ Role : %s ------\n", role);
     printf("\n----- Contact Manager -----\n");
     if (strcmp(role, "admin") == 0)
     {
@@ -233,66 +233,10 @@ int getMenuChoice()
     while (scanf("%d", &choice) != 1 || choice < 0)
     {
         printf("Invalid choice. Please enter a number: ");
-        fflush(stdin); // Clear input buffer
+        fflush(stdin); 
     }
     return choice;
 }
 
 void addContact(int sockfd)
-{
-    Contact newContact;
-
-    printf("Enter contact name: ");
-    fgets(newContact.nom, sizeof(newContact.nom), stdin);
-    newContact.nom[strcspn(newContact.nom, "\n")] = 0; // Remove trailing newline
-
-    printf("Enter email: ");
-    fgets(newContact.email, sizeof(newContact.email), stdin);
-    newContact.email[strcspn(newContact.email, "\n")] = 0;
-
-    printf("Enter phone number (GSM): ");
-    scanf("%d", &newContact.GSM);
-
-    printf("Enter street address: ");
-    fgets(newContact.adr.rue, sizeof(newContact.adr.rue), stdin);
-    newContact.adr.rue[strcspn(newContact.adr.rue, "\n")] = 0;
-
-    printf("Enter city: ");
-    fgets(newContact.adr.ville, sizeof(newContact.adr.ville), stdin);
-    newContact.adr.ville[strcspn(newContact.adr.ville, "\n")] = 0;
-
-    printf("Enter country: ");
-    fgets(newContact.adr.pays, sizeof(newContact.adr.pays), stdin);
-    newContact.adr.pays[strcspn(newContact.adr.pays, "\n")] = 0;
-
-    // Build the message (assuming protocol format: command;data)
-    char message[MAX_MESSAGE_SIZE];
-    sprintf(message, "1;%s;%s;%d;%s;%s;%s;%s",
-            newContact.nom, newContact.prenom, newContact.GSM, newContact.email,
-            newContact.adr.rue, newContact.adr.ville, newContact.adr.pays);
-
-    // Send to  server
-    int length = strlen(message);
-    if (sendMessage(sockfd, message, length) != 0)
-    {
-        printf("Error sending contact data.\n");
-        return;
-    }
-
-    // Receive response from the server
-    char *response = receiveMessage(sockfd);
-    if (response == NULL)
-    {
-        printf("Error receiving response from server.\n");
-    }
-    else if (response[0] == 'E')
-    {
-        printf("Server Error: %s\n", response + 2);
-    }
-    else
-    {
-        // Assume a simple success confirmation is sent
-        printf("Contact added successfully!\n");
-    }
-    free(response);
-}
+{}
