@@ -36,8 +36,8 @@ typedef struct
 
 // Function prototypes
 bool authenticateUser(int clientSockfd, char *role);
-void processClientRequest(int clientSockfd, char *role);
-void addContact(Contact contact);
+bool processClientRequest(int clientSockfd, char *role);
+void addContact(Contact contact, int clientSockfd);
 
 int sendMessage(int sockfd, const void *message, size_t length);
 char *receiveMessage(int sockfd);
@@ -96,21 +96,28 @@ int main()
         {
             printf("Server accept failed...\n");
         }
-
-        printf("Server accepted the client...\n");
-        
-        // Authentication & Request Handling (Repeated)
-        char role[10];
-        if (authenticateUser(clientSockfd, role))
+        else
         {
-            printf("User authenticated with role: %s\n", role);
+            printf("Server accepted the client...\n");
+            // Authentication & Request Handling (Repeated)
             do
             {
-                processClientRequest(clientSockfd, role);
+                char role[10];
+                if (authenticateUser(clientSockfd, role))
+                {
+                    printf("User authenticated with role: %s\n", role);
+
+                    while (true)
+                    {
+                        if (!processClientRequest(clientSockfd, role))
+                        {
+                            // If processClientRequest returns false, the client has finished sending requests
+                            break;
+                        }
+                    }
+                }
             } while (shouldContinue(clientSockfd));
         }
-
-        close(clientSockfd);
     }
 }
 
@@ -182,25 +189,15 @@ bool authenticateUser(int clientSockfd, char *role)
 
 bool shouldContinue(int clientSockfd)
 {
-    char buffer[10];
-    int bytes_received = recv(clientSockfd, buffer, sizeof(buffer), 0);
-    if (bytes_received <= 0)
-    {
-        return false;
-    }
-    return strcmp(buffer, "RETRY") == 0;
+    char *response = receiveMessage(clientSockfd);
+
+    return strcmp(response, "RETRY") == 0;
 }
 
-void processClientRequest(int clientSockfd, char *role)
+bool processClientRequest(int clientSockfd, char *role)
 {
-    char message[MAX_MESSAGE_SIZE];
-    int bytes_received = recv(clientSockfd, message, MAX_MESSAGE_SIZE, 0);
-
-    if (bytes_received <= 0)
-    {
-        printf("Client disconnected or error.\n");
-        return;
-    }
+    char *message = receiveMessage(clientSockfd);
+    printf("choice Message received \n");
 
     switch (message[0])
     {
@@ -208,22 +205,25 @@ void processClientRequest(int clientSockfd, char *role)
     {
         Contact newContact;
         memcpy(&newContact, message + 1, sizeof(Contact));
-        addContact(newContact);
-        break;
+        addContact(newContact, clientSockfd);
+        return true;
     }
     case '2': // Search contact
 
-        break;
+        return true;
         // ... cases for edit, delete, display ...
     }
+    return false;
 }
 
-void addContact(Contact contact)
+void addContact(Contact contact, int clientSockfd)
 {
     FILE *contactsFile = fopen(CONTACTS_FILE, "a"); // Open in append mode
     if (contactsFile == NULL)
     {
         perror("Error opening contacts.txt");
+        sendMessage(clientSockfd, "0", 2);
+        printf("Error message sent\n");
         return;
     }
 
@@ -235,7 +235,10 @@ void addContact(Contact contact)
     fclose(contactsFile);
 
     printf("Contact added successfully:\n");
-    printf("Name: %s, Surname: %s, GSM: %d, Email: %s, Street: %s, City: %s, Country: %s\n",
+    printf("%s#%s#%d#%s#%s#%s#%s\n",
            contact.nom, contact.prenom, contact.GSM, contact.email,
            contact.adr.rue, contact.adr.ville, contact.adr.pays);
+
+    sendMessage(clientSockfd, "1", 2);
+    printf("Succes message sent\n");
 }

@@ -77,7 +77,6 @@ int main()
             break;
         // ... other cases ...
         case 0:
-            printf("Exiting...\n");
             break;
         default:
             printf("Invalid option.\n");
@@ -85,6 +84,7 @@ int main()
         }
     } while (choice != 0);
 
+    printf("Exiting...\n");
     close(sockfd);
     return 0;
 }
@@ -166,6 +166,7 @@ int login(int sockfd, char *role)
             printf("Error sending login credentials.\n");
             continue;
         }
+        printf("loginCredentials Message sent \n");
 
         char *response = receiveMessage(sockfd);
 
@@ -174,6 +175,7 @@ int login(int sockfd, char *role)
             printf("Error receiving authentication response.\n");
             continue;
         }
+        printf("loginCredentials Response received\n");
 
         if (response[0] == '1')
         {
@@ -196,6 +198,7 @@ int login(int sockfd, char *role)
             choice[strcspn(choice, "\n")] = 0;
 
             sendMessage(sockfd, choice, strlen(choice));
+            printf(" choice Message sent \n");
 
             if (strcmp(choice, "EXIT") == 0)
             {
@@ -241,7 +244,8 @@ int getMenuChoice()
     return choice;
 }
 
-void addContact(int sockfd) {
+void addContact(int sockfd)
+{
     Contact newContact;
 
     // Prompt user for contact information
@@ -265,5 +269,30 @@ void addContact(int sockfd) {
     char message[MAX_MESSAGE_SIZE];
     message[0] = '1'; // Indicates add contact request
     memcpy(message + 1, &newContact, sizeof(Contact));
-    sendMessage(sockfd, message, sizeof(Contact) + 1);
+
+    if (sendMessage(sockfd, message, sizeof(Contact) + 1) != 0)
+    {
+        printf("Error sending add contact request.\n");
+    }
+    printf("newContact Message sent\n");
+
+    char *response = receiveMessage(sockfd);
+    printf("response Message received\n");
+
+    if (response == NULL)
+    {
+        printf("Error receiving authentication response.\n");
+    }
+
+    else if (strcmp(response, "1") == 0)
+    {
+        printf("Contact added successfully.\n");
+    }
+
+    else
+    {
+        printf("Failed to add contact.\n");
+    }
+
+    free(response);
 }
