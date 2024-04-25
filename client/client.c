@@ -193,6 +193,7 @@ int login(int sockfd, char *role)
             char choice[10];
             printf("Try again? (RETRY/EXIT): ");
             fgets(choice, sizeof(choice), stdin);
+            choice[strcspn(choice, "\n")] = 0;
 
             sendMessage(sockfd, choice, strlen(choice));
 
@@ -240,6 +241,29 @@ int getMenuChoice()
     return choice;
 }
 
-void addContact(int sockfd)
-{
+void addContact(int sockfd) {
+    Contact newContact;
+
+    // Prompt user for contact information
+    printf("Enter contact details:\n");
+    printf("Name: ");
+    scanf("%s", newContact.nom);
+    printf("Surname: ");
+    scanf("%s", newContact.prenom);
+    printf("GSM: ");
+    scanf("%d", &newContact.GSM);
+    printf("Email: ");
+    scanf("%s", newContact.email);
+    printf("Street: ");
+    scanf("%s", newContact.adr.rue);
+    printf("City: ");
+    scanf("%s", newContact.adr.ville);
+    printf("Country: ");
+    scanf("%s", newContact.adr.pays);
+
+    // Send add contact request
+    char message[MAX_MESSAGE_SIZE];
+    message[0] = '1'; // Indicates add contact request
+    memcpy(message + 1, &newContact, sizeof(Contact));
+    sendMessage(sockfd, message, sizeof(Contact) + 1);
 }

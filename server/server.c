@@ -96,23 +96,21 @@ int main()
         {
             printf("Server accept failed...\n");
         }
-        else
+
+        printf("Server accepted the client...\n");
+        
+        // Authentication & Request Handling (Repeated)
+        char role[10];
+        if (authenticateUser(clientSockfd, role))
         {
-            printf("Server accepted the client...\n");
-            // Authentication & Request Handling (Repeated)
+            printf("User authenticated with role: %s\n", role);
             do
             {
-                char role[10];
-                if (authenticateUser(clientSockfd, role))
-                {
-                    printf("User authenticated with role: %s\n", role);
-                    processClientRequest(clientSockfd, role);
-                }
-
+                processClientRequest(clientSockfd, role);
             } while (shouldContinue(clientSockfd));
-
-            close(clientSockfd);
         }
+
+        close(clientSockfd);
     }
 }
 
@@ -209,11 +207,9 @@ void processClientRequest(int clientSockfd, char *role)
     case '1': // Add contact
     {
         Contact newContact;
-        if (recv(clientSockfd, &newContact, sizeof(Contact), 0) > 0)
-        {
-            addContact(newContact);
-            break;
-        }
+        memcpy(&newContact, message + 1, sizeof(Contact));
+        addContact(newContact);
+        break;
     }
     case '2': // Search contact
 
@@ -224,4 +220,22 @@ void processClientRequest(int clientSockfd, char *role)
 
 void addContact(Contact contact)
 {
+    FILE *contactsFile = fopen(CONTACTS_FILE, "a"); // Open in append mode
+    if (contactsFile == NULL)
+    {
+        perror("Error opening contacts.txt");
+        return;
+    }
+
+    // Format Contact Data (Change as needed based on storage method)
+    fprintf(contactsFile, "%s,%s,%d,%s,%s,%s,%s\n",
+            contact.nom, contact.prenom, contact.GSM, contact.email,
+            contact.adr.rue, contact.adr.ville, contact.adr.pays);
+
+    fclose(contactsFile);
+
+    printf("Contact added successfully:\n");
+    printf("Name: %s, Surname: %s, GSM: %d, Email: %s, Street: %s, City: %s, Country: %s\n",
+           contact.nom, contact.prenom, contact.GSM, contact.email,
+           contact.adr.rue, contact.adr.ville, contact.adr.pays);
 }
