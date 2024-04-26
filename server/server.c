@@ -64,15 +64,18 @@ int main()
     serverAddress.sin_port = htons(8080);
 
     // 3. Bind the socket
-    if (bind(serverSockfd, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) != 0)
+    int bindResult;
+    do
     {
-        printf("Socket bind failed...\n");
-        exit(0);
-    }
-    else
-    {
-        printf("Socket successfully binded..\n");
-    }
+        bindResult = bind(serverSockfd, (struct sockaddr *)&serverAddress, sizeof(serverAddress));
+        if (bindResult != 0)
+        {
+            perror("Socket bind failed");
+            sleep(1); // Attendre 1 seconde avant la prochaine tentative
+        }
+    } while (bindResult != 0);
+
+    printf("Socket successfully binded..\n");
 
     // 4. Enable the socket to listen for connections
     if (listen(serverSockfd, 5) != 0)
