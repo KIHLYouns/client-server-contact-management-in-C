@@ -40,6 +40,10 @@ int login(int sockfd, char *role);
 void displayMenu(const char *role);
 int getMenuChoice();
 void addContact(int sockfd);
+void searchContact(int sockfd);
+void editContact(int sockfd);
+void deleteContact(int sockfd);
+void displayAllContact(int sockfd);
 
 int sendMessage(int sockfd, const void *message, size_t length);
 char *receiveMessage(int sockfd);
@@ -75,7 +79,18 @@ int main()
         case 1:
             addContact(sockfd);
             break;
-        // ... other cases ...
+        case 2:
+            searchContact(sockfd);
+            break;
+        case 3:
+            editContact(sockfd);
+            break;
+        case 4:
+            deleteContact(sockfd);
+            break;
+        case 5:
+            displayAllContact(sockfd);
+            break;
         case 0:
             break;
         default:
@@ -295,4 +310,24 @@ void addContact(int sockfd)
     }
 
     free(response);
+}
+
+void searchContact(int sockfd)
+{
+    printf("it works");
+}
+
+void editContact(int sockfd)
+{
+    printf("it works");
+}
+
+void deleteContact(int sockfd)
+{
+    printf("it works");
+}
+
+void displayAllContact(int sockfd)
+{
+    printf("it works");
 }

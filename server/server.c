@@ -38,6 +38,7 @@ typedef struct
 bool authenticateUser(int clientSockfd, char *role);
 bool processClientRequest(int clientSockfd, char *role);
 void addContact(Contact contact, int clientSockfd);
+void editContact(Contact editedContact);
 
 int sendMessage(int sockfd, const void *message, size_t length);
 char *receiveMessage(int sockfd);
@@ -109,7 +110,6 @@ int main()
                 if (authenticateUser(clientSockfd, role))
                 {
                     printf("User authenticated with role: %s\n", role);
-
                     while (true)
                     {
                         if (!processClientRequest(clientSockfd, role))
@@ -211,10 +211,20 @@ bool processClientRequest(int clientSockfd, char *role)
         addContact(newContact, clientSockfd);
         return true;
     }
-    case '2': // Search contact
+    case '2':
 
         return true;
-        // ... cases for edit, delete, display ...
+    case '3': 
+
+        return true;
+    case '4': 
+
+        return true;
+    case '5': 
+
+        return true;    
+
+
     }
     return false;
 }
