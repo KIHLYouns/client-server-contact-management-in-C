@@ -19,11 +19,11 @@ t:
 	@echo "${GREEN}Executing bash in the container...${NC}"
 	docker exec -it ubuntu_dev bash
 
-run_s:
+server:
 	@echo "${GREEN}Compiling and running server code inside the container...${NC}"
 	cd server && gcc -o server server.c && ./server
 
-run_c:
+client:
 	@echo "${GREEN}Compiling and running client code inside the container...${NC}"
 	cd client && gcc -o client client.c && ./client
 
