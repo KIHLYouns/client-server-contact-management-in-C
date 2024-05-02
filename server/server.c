@@ -38,7 +38,7 @@ typedef struct
 bool authenticateUser(int clientSockfd, char *role);
 bool processClientRequest(int clientSockfd, char *role);
 void addContact(Contact contact, int clientSockfd);
-void editContact(Contact editedContact);
+void searchContact(char *contactName, int clientSockfd);
 
 int sendMessage(int sockfd, const void *message, size_t length);
 char *receiveMessage(int sockfd);
@@ -114,7 +114,7 @@ int main()
                     {
                         if (!processClientRequest(clientSockfd, role))
                         {
-                            // If processClientRequest returns false, the client has finished sending requests
+                            printf("Closing connection...\n");
                             break;
                         }
                     }
@@ -200,7 +200,7 @@ bool shouldContinue(int clientSockfd)
 bool processClientRequest(int clientSockfd, char *role)
 {
     char *message = receiveMessage(clientSockfd);
-    printf("choice Message received \n");
+    printf("request Message received \n");
 
     switch (message[0])
     {
@@ -211,9 +211,13 @@ bool processClientRequest(int clientSockfd, char *role)
         addContact(newContact, clientSockfd);
         return true;
     }
-    case '2':
-
+    case '2': // search contact by name
+    {
+        char contactName[20];
+        memcpy(contactName, message + 1, strlen(contactName) + 1);
+        searchContact(contactName, clientSockfd);
         return true;
+    }
     case '3': 
 
         return true;
@@ -241,7 +245,7 @@ void addContact(Contact contact, int clientSockfd)
     }
 
     // Format Contact Data (Change as needed based on storage method)
-    fprintf(contactsFile, "%s,%s,%d,%s,%s,%s,%s\n",
+    fprintf(contactsFile, "%s#%s#%d#%s#%s#%s#%s\n",
             contact.nom, contact.prenom, contact.GSM, contact.email,
             contact.adr.rue, contact.adr.ville, contact.adr.pays);
 
@@ -255,3 +259,69 @@ void addContact(Contact contact, int clientSockfd)
     sendMessage(clientSockfd, "1", 2);
     printf("Succes message sent\n");
 }
+
+void searchContact(char *contactName, int clientSockfd)
+{
+    // Read contacts from file
+    FILE *contactsFile = fopen(CONTACTS_FILE, "r");
+    if (contactsFile == NULL)
+    {
+        perror("Error opening contacts.txt");
+        sendMessage(clientSockfd, "0", 2);
+        printf("Error message sent\n");
+        return;
+    }
+
+    int found = 0;
+    Contact contact;
+    char buffer[100];
+    while (fgets(buffer, sizeof(buffer), contactsFile) != NULL)
+    {
+        char *firstName = strtok(buffer, "#");
+        if (firstName == NULL)
+            continue;
+
+        // Check if first name matches
+        if (strcmp(firstName, contactName) == 0)
+        {
+            found = 1;
+
+            // Extract other fields
+            char *token = strtok(NULL, "#");
+            strncpy(contact.prenom, token, sizeof(contact.prenom));
+
+            token = strtok(NULL, "#");
+            sscanf(token, "%d", &contact.GSM);
+
+            token = strtok(NULL, "#");
+            strncpy(contact.email, token, sizeof(contact.email));
+
+            token = strtok(NULL, "#");
+            strncpy(contact.adr.rue, token, sizeof(contact.adr.rue));
+
+            token = strtok(NULL, "#");
+            strncpy(contact.adr.ville, token, sizeof(contact.adr.ville));
+
+            token = strtok(NULL, "#");
+            strncpy(contact.adr.pays, token, sizeof(contact.adr.pays));
+
+            strncpy(contact.nom, firstName, sizeof(contact.nom));
+        }
+    }
+
+    if (found)
+    {
+        sendMessage(clientSockfd, (const void *)&contact, sizeof(Contact));
+        printf("Contact details sent\n");
+    }
+    else
+    {
+        sendMessage(clientSockfd, "0", 2);
+        printf("Contact not found\n");
+    }
+
+    fclose(contactsFile);
+}
+
+
+

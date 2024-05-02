@@ -314,8 +314,48 @@ void addContact(int sockfd)
 
 void searchContact(int sockfd)
 {
-    printf("it works");
+    char message[MAX_MESSAGE_SIZE];
+    char contactName[20];
+    printf("Enter contact name: ");
+    scanf("%s", contactName);
+    message[0] = '2';
+    memcpy(message + 1, contactName, strlen(contactName) + 1);
+    if (sendMessage(sockfd, message, strlen(contactName) + 1) != 0)
+    {
+        printf("Error sending search contact request.\n");
+    }
+    else
+    {
+        printf("Search contact request sent.\n");
+    }
+
+    char *response = receiveMessage(sockfd);
+    printf("response Message received\n");
+    if (response == NULL)
+    {
+        printf("Error receiving authentication response.\n");
+    }
+    else if (response[0] == '0')
+    {
+        printf("Contact not found.\n");
+    }
+
+    else
+    {
+        Contact contact;
+        memcpy(&contact, response , sizeof(Contact));
+        printf("Contact found:\n");
+        printf("Name: %s %s\n", contact.nom, contact.prenom);
+        printf("GSM: %d\n", contact.GSM);
+        printf("Email: %s\n", contact.email);
+        printf("Street: %s\n", contact.adr.rue);
+        printf("City: %s\n", contact.adr.ville);
+        printf("Country: %s\n", contact.adr.pays);
+    }
+
+    free(response);
 }
+
 
 void editContact(int sockfd)
 {
