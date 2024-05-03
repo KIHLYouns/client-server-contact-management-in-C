@@ -100,14 +100,15 @@ int main()
                 displayAllContact(sockfd);
                 break;
             case 0:
-            // close connection without make problems for the server
+                // Send a message to the server to close the connection
+                sendMessage(sockfd, "0", 2);
+                close(sockfd);
                 break;
             }
         }
     } while (choice != 0);
 
     printf("Exiting...\n");
-    close(sockfd);
     return 0;
 }
 
@@ -174,7 +175,7 @@ int login(int sockfd, char *role)
 {
     Login loginCredentials;
 
-    for (int passwordAttempt = 0; passwordAttempt < 3; passwordAttempt++)
+    for (int attempt = 0; attempt < 3; attempt++)
     {
         printf("Enter username: ");
         fgets(loginCredentials.username, sizeof(loginCredentials.username), stdin);
@@ -188,16 +189,17 @@ int login(int sockfd, char *role)
             fprintf(stderr, "Error sending login credentials.\n");
             continue;
         }
-        //printf("loginCredentials Message sent \n");
+        printf("\nloginCredentials Sent\n");
 
         char *response = receiveMessage(sockfd);
+        printf("loginCredentials Response received\n");
 
         if (response == NULL)
         {
             fprintf(stderr, "Error receiving authentication response.\n");
             continue;
         }
-        //printf("loginCredentials Response received\n");
+        // printf("loginCredentials Response received\n");
 
         if (response[0] == '1')
         {
@@ -212,25 +214,28 @@ int login(int sockfd, char *role)
 
         if (response[0] == '0')
         {
-            fprintf(stderr, "Invalid username or password...\n");
+            fprintf(stderr, "\nInvalid username or password...\n");
 
             char choice[10];
             printf("Try again? (RETRY/EXIT): ");
             fgets(choice, sizeof(choice), stdin);
             choice[strcspn(choice, "\n")] = 0;
 
-            sendMessage(sockfd, choice, strlen(choice));
-            //printf(" choice Message sent \n");
+            if (strcasecmp(choice, "RETRY") == 0)
+            {
+                continue;
+            }
 
-            if (strcmp(choice, "EXIT") == 0)
+            else
             {
                 printf("Exiting...\n");
                 close(sockfd);
                 return 0;
             }
+            
         }
     }
-    fprintf(stderr, "Too many incorrect password attempts. Exiting.\n");
+    fprintf(stderr, "Too many login attempts !!!\n");
     return 0;
 }
 
@@ -351,7 +356,7 @@ void searchContact(int sockfd)
     else
     {
         Contact contact;
-        memcpy(&contact, response , sizeof(Contact));
+        memcpy(&contact, response, sizeof(Contact));
         printf("\nContact found:\n");
         printf("Name: %s %s\n", contact.nom, contact.prenom);
         printf("GSM: %d\n", contact.GSM);
@@ -364,7 +369,6 @@ void searchContact(int sockfd)
 
     free(response);
 }
-
 
 void editContact(int sockfd)
 {
@@ -380,4 +384,3 @@ void displayAllContact(int sockfd)
 {
     printf("it works");
 }
-
