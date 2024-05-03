@@ -298,7 +298,7 @@ void addContact(int sockfd)
     scanf("%s", newContact.nom);
     printf("Surname: ");
     scanf("%s", newContact.prenom);
-    printf("GSM: ");
+    printf("GSM: +212");
     scanf("%d", &newContact.GSM);
     printf("Email: ");
     scanf("%s", newContact.email);
@@ -376,7 +376,7 @@ void searchContact(int sockfd)
         memcpy(&contact, response, sizeof(Contact));
         printf("\nContact found:\n");
         printf("Name: %s %s\n", contact.nom, contact.prenom);
-        printf("GSM: %d\n", contact.GSM);
+        printf("GSM: +212%d\n", contact.GSM);
         printf("Email: %s\n", contact.email);
         printf("Address: \n");
         printf("   Street: %s\n", contact.adr.rue);

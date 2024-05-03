@@ -7,6 +7,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
+#include <pthread.h>
 
 #define CONTACTS_FILE "contacts.txt"
 #define USERS_FILE "users.txt"
@@ -37,6 +38,7 @@ typedef struct
 // Function prototypes
 bool authenticateUser(int clientSockfd, char *role);
 bool processClientRequest(int clientSockfd, char *role);
+void *handleClient(void *clientSockfd_void);
 void addContact(Contact contact, int clientSockfd);
 void searchContact(char *contactName, int clientSockfd);
 
@@ -102,19 +104,35 @@ int main()
         else
         {
             printf("Server accepted the client...\n");
-            // Authentication & Request Handling (Repeated)
-            char role[10];
-            while (authenticateUser(clientSockfd, role))
-            {
-                printf("User authenticated with role: %s\n", role);
-                while (processClientRequest(clientSockfd, role))
-                {
-                    // Just loop until the client breaks the connection
-                }
-                printf("Client disconnected...\n");
-            }
+            // Handle the client in a new thread
+            pthread_t client_thread;
+            pthread_create(&client_thread, NULL, handleClient, (void *)(long)clientSockfd);
         }
     }
+}
+
+void *handleClient(void *clientSockfd_void)
+{
+    // Convert the clientSockfd_void to int
+    int clientSockfd = (int)(long)clientSockfd_void;
+
+    // Authentication & Request Handling (Repeated)
+    char role[10];
+    while (authenticateUser(clientSockfd, role))
+    {
+        printf("User authenticated with role: %s\n", role);
+        while (processClientRequest(clientSockfd, role))
+        {
+            // Just loop until the client breaks the connection
+        }
+        printf("Client disconnected...\n");
+    }
+
+    // Close the client socket
+    close(clientSockfd);
+
+    // Exit the thread
+    pthread_exit(0);
 }
 
 int sendMessage(int sockfd, const void *message, size_t length)
