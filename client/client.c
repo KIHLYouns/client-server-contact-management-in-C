@@ -72,7 +72,7 @@ int main()
     do
     {
         displayMenu(role);
-        choice = getMenuChoice();
+        choice = getMenuChoice(role);
 
         printf("\n"); // Add newline to improve print output
 
@@ -225,14 +225,12 @@ int login(int sockfd, char *role)
             {
                 continue;
             }
-
             else
             {
                 printf("Exiting...\n");
                 close(sockfd);
                 return 0;
             }
-            
         }
     }
     fprintf(stderr, "Too many login attempts !!!\n");
@@ -260,13 +258,32 @@ void displayMenu(const char *role)
     printf("Enter your choice: ");
 }
 
-int getMenuChoice()
+int getMenuChoice(const char *role)
 {
+
     int choice;
-    while (scanf("%d", &choice) != 1 || choice < 0)
+    if (strcmp(role, "admin") == 0)
+        while (scanf("%d", &choice) != 1 || choice < 0)
+        {
+            fprintf(stderr, "Invalid choice. Please enter a valid number: ");
+            fflush(stdin);
+        }
+
+    else if (strcmp(role, "guest") == 0)
     {
-        fprintf(stderr, "Invalid choice. Please enter a valid number: ");
-        fflush(stdin);
+        while (scanf("%d", &choice) != 1 || choice < 0 || choice > 2)
+        {
+            fprintf(stderr, "Invalid choice. Please enter a valid number: ");
+            fflush(stdin);
+        }
+        if (choice == 1)
+        {
+            return 2;
+        }
+        else if (choice == 2)
+        {
+            return 5;
+        }
     }
     return choice;
 }
