@@ -11,7 +11,7 @@
 
 #define CONTACTS_FILE "contacts.txt"
 #define USERS_FILE "users.txt"
-#define MAX_MESSAGE_SIZE 256
+#define MAX_MESSAGE_SIZE 1024
 
 typedef struct
 {
@@ -43,7 +43,7 @@ void addContact(int sockfd);
 void searchContact(int sockfd);
 void editContact(int sockfd);
 void deleteContact(int sockfd);
-void displayAllContact(int sockfd);
+void displayAllContact(int sockfd, const char *role);
 
 int sendMessage(int sockfd, const void *message, size_t length);
 char *receiveMessage(int sockfd);
@@ -57,13 +57,13 @@ int main()
     int sockfd = connectToServer(serverIP, serverPort);
     if (sockfd < 0)
     {
-        fprintf(stderr, "Connection failed.\n");
+        printf("Connection failed.\n");
         return -1;
     }
 
     if (!login(sockfd, role))
     {
-        fprintf(stderr, "Login failed. Exiting.\n");
+        printf("Login failed. Exiting.\n");
         close(sockfd);
         return -1;
     }
@@ -72,43 +72,53 @@ int main()
     do
     {
         displayMenu(role);
-        choice = getMenuChoice(role);
-
-        printf("\n"); // Add newline to improve print output
-
-        if (choice < 0 || choice > 5)
+        choice = getMenuChoice();
+        if(strcmp(role,"admin") == 0 ){
+        switch (choice)
         {
-            fprintf(stderr, "Invalid option.\n");
+        case 1:
+            addContact(sockfd);
+            break;
+        case 2:
+            searchContact(sockfd);
+            break;
+        case 3:
+            editContact(sockfd);
+            break;
+        case 4:
+            deleteContact(sockfd);
+            break;
+        case 5:
+            displayAllContact(sockfd,role);
+            break;
+        case 0:
+            break;
+        default:
+            printf("Invalid option.\n");
+            break;
         }
-        else
+    
+    }
+    else{
+        switch (choice)
         {
-            switch (choice)
-            {
-            case 1:
-                addContact(sockfd);
-                break;
-            case 2:
-                searchContact(sockfd);
-                break;
-            case 3:
-                editContact(sockfd);
-                break;
-            case 4:
-                deleteContact(sockfd);
-                break;
-            case 5:
-                displayAllContact(sockfd);
-                break;
-            case 0:
-                // Send a message to the server to close the connection
-                sendMessage(sockfd, "0", 2);
-                close(sockfd);
-                break;
-            }
+        case 1:
+           searchContact(sockfd);
+            break;
+        case 2:
+            displayAllContact(sockfd,role);
+            break;
+        case 0:
+            break;
+        default:
+            printf("Invalid option.\n");
+            break;
         }
+
+    }
     } while (choice != 0);
-
     printf("Exiting...\n");
+    close(sockfd);
     return 0;
 }
 
@@ -153,7 +163,7 @@ int connectToServer(const char *serverIP, int serverPort)
     serverAddress.sin_family = AF_INET;
     serverAddress.sin_port = htons(serverPort);
 
-    if (inet_pton(AF_INET, serverIP, &serverAddress.sin_addr) <= 0)
+    if (inet_aton(serverIP, &serverAddress.sin_addr) == 0)
     {
         perror("Invalid IP address");
         close(sockfd);
@@ -175,7 +185,7 @@ int login(int sockfd, char *role)
 {
     Login loginCredentials;
 
-    for (int attempt = 0; attempt < 3; attempt++)
+    for (int passwordAttempt = 0; passwordAttempt < 3; passwordAttempt++)
     {
         printf("Enter username: ");
         fgets(loginCredentials.username, sizeof(loginCredentials.username), stdin);
@@ -186,20 +196,19 @@ int login(int sockfd, char *role)
 
         if (sendMessage(sockfd, &loginCredentials, sizeof(Login)) != 0)
         {
-            fprintf(stderr, "Error sending login credentials.\n");
+            printf("Error sending login credentials.\n");
             continue;
         }
-        printf("\nloginCredentials Sent\n");
+        printf("loginCredentials Message sent \n");
 
         char *response = receiveMessage(sockfd);
-        printf("loginCredentials Response received\n");
 
         if (response == NULL)
         {
-            fprintf(stderr, "Error receiving authentication response.\n");
+            printf("Error receiving authentication response.\n");
             continue;
         }
-        // printf("loginCredentials Response received\n");
+        printf("loginCredentials Response received\n");
 
         if (response[0] == '1')
         {
@@ -214,18 +223,17 @@ int login(int sockfd, char *role)
 
         if (response[0] == '0')
         {
-            fprintf(stderr, "\nInvalid username or password...\n");
+            printf("Invalid username or password...\n");
 
             char choice[10];
             printf("Try again? (RETRY/EXIT): ");
             fgets(choice, sizeof(choice), stdin);
             choice[strcspn(choice, "\n")] = 0;
 
-            if (strcasecmp(choice, "RETRY") == 0)
-            {
-                continue;
-            }
-            else
+            sendMessage(sockfd, choice, strlen(choice));
+            printf(" choice Message sent \n");
+
+            if (strcmp(choice, "EXIT") == 0)
             {
                 printf("Exiting...\n");
                 close(sockfd);
@@ -233,14 +241,14 @@ int login(int sockfd, char *role)
             }
         }
     }
-    fprintf(stderr, "Too many login attempts !!!\n");
+    printf("Too many incorrect password attempts. Exiting.\n");
     return 0;
 }
 
 void displayMenu(const char *role)
 {
-    printf("\n------- ROLE : %s -------\n", role);
-    printf("\n----- CONTACT MANAGER -----\n");
+    printf("\n------ Role : %s ------\n", role);
+    printf("\n----- Contact Manager -----\n");
     if (strcmp(role, "admin") == 0)
     {
         printf("\n1. Add Contact\n");
@@ -255,35 +263,16 @@ void displayMenu(const char *role)
         printf("2. Display All Contacts\n");
     }
     printf("0. Exit\n");
-    printf("Enter your choice: ");
+    printf("\nEnter your choice: ");
 }
 
-int getMenuChoice(const char *role)
+int getMenuChoice()
 {
-
     int choice;
-    if (strcmp(role, "admin") == 0)
-        while (scanf("%d", &choice) != 1 || choice < 0)
-        {
-            fprintf(stderr, "Invalid choice. Please enter a valid number: ");
-            fflush(stdin);
-        }
-
-    else if (strcmp(role, "guest") == 0)
+    while (scanf("%d", &choice) != 1 || choice < 0)
     {
-        while (scanf("%d", &choice) != 1 || choice < 0 || choice > 2)
-        {
-            fprintf(stderr, "Invalid choice. Please enter a valid number: ");
-            fflush(stdin);
-        }
-        if (choice == 1)
-        {
-            return 2;
-        }
-        else if (choice == 2)
-        {
-            return 5;
-        }
+        printf("Invalid choice. Please enter a valid number: ");
+        fflush(stdin);
     }
     return choice;
 }
@@ -293,21 +282,20 @@ void addContact(int sockfd)
     Contact newContact;
 
     // Prompt user for contact information
-    printf("\nEnter contact details: \n");
+    printf("Enter contact details:\n");
     printf("Name: ");
     scanf("%s", newContact.nom);
     printf("Surname: ");
     scanf("%s", newContact.prenom);
-    printf("GSM: +212");
+    printf("GSM: ");
     scanf("%d", &newContact.GSM);
     printf("Email: ");
     scanf("%s", newContact.email);
-    printf("Address: \n");
-    printf("   Street: ");
+    printf("Street: ");
     scanf("%s", newContact.adr.rue);
-    printf("   City: ");
+    printf("City: ");
     scanf("%s", newContact.adr.ville);
-    printf("   Country: ");
+    printf("Country: ");
     scanf("%s", newContact.adr.pays);
 
     // Send add contact request
@@ -317,7 +305,7 @@ void addContact(int sockfd)
 
     if (sendMessage(sockfd, message, sizeof(Contact) + 1) != 0)
     {
-        fprintf(stderr, "Error sending add contact request.\n");
+        printf("Error sending add contact request.\n");
     }
     printf("newContact Message sent\n");
 
@@ -326,7 +314,7 @@ void addContact(int sockfd)
 
     if (response == NULL)
     {
-        fprintf(stderr, "Error receiving authentication response.\n");
+        printf("Error receiving authentication response.\n");
     }
 
     else if (strcmp(response, "1") == 0)
@@ -336,7 +324,7 @@ void addContact(int sockfd)
 
     else
     {
-        fprintf(stderr, "Failed to add contact.\n");
+        printf("Failed to add contact.\n");
     }
 
     free(response);
@@ -344,47 +332,7 @@ void addContact(int sockfd)
 
 void searchContact(int sockfd)
 {
-    char message[MAX_MESSAGE_SIZE];
-    char contactName[20];
-    printf("Enter contact name: ");
-    scanf("%s", contactName);
-    message[0] = '2';
-    memcpy(message + 1, contactName, strlen(contactName) + 1);
-    if (sendMessage(sockfd, message, strlen(contactName) + 1) != 0)
-    {
-        fprintf(stderr, "Error sending search contact request.\n");
-    }
-    else
-    {
-        printf("Search contact request sent.\n");
-    }
-
-    char *response = receiveMessage(sockfd);
-    printf("response Message received\n");
-    if (response == NULL)
-    {
-        fprintf(stderr, "Error receiving authentication response.\n");
-    }
-    else if (response[0] == '0')
-    {
-        printf("Contact not found.\n");
-    }
-
-    else
-    {
-        Contact contact;
-        memcpy(&contact, response, sizeof(Contact));
-        printf("\nContact found:\n");
-        printf("Name: %s %s\n", contact.nom, contact.prenom);
-        printf("GSM: +212%d\n", contact.GSM);
-        printf("Email: %s\n", contact.email);
-        printf("Address: \n");
-        printf("   Street: %s\n", contact.adr.rue);
-        printf("   City: %s\n", contact.adr.ville);
-        printf("   Country: %s\n", contact.adr.pays);
-    }
-
-    free(response);
+    printf("it works");
 }
 
 void editContact(int sockfd)
@@ -397,7 +345,42 @@ void deleteContact(int sockfd)
     printf("it works");
 }
 
-void displayAllContact(int sockfd)
+void displayAllContact(int sockfd, const char *role)
 {
-    printf("it works");
+    char message[MAX_MESSAGE_SIZE];
+    if(strcmp(role,"admin") == 0)
+       message[0] = '5'; 
+    else
+       message[0] = '2'; 
+
+    sendMessage(sockfd, &message, sizeof(message));
+
+   
+    char* response = receiveMessage(sockfd);
+
+    
+    if (response == NULL) {
+        printf("Error receiving response from server.\n");
+        close(sockfd);
+        exit(1);
+    }
+
+    
+    char* line = strtok(response, "|"); 
+    while (line != NULL) {
+        printf("%s\n", line);
+        line = strtok(NULL, "|");
+    }
+    
 }
+
+     
+
+           
+       
+
+ 
+
+   
+  
+  
