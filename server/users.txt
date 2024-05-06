@@ -1,2 +1,3 @@
 kihl 123 admin
 youns 123 guest
+amal 456 admin
