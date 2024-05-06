@@ -7,11 +7,11 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
-#include <pthread.h>
 
 #define CONTACTS_FILE "contacts.txt"
 #define USERS_FILE "users.txt"
-#define MAX_MESSAGE_SIZE 256
+#define MAX_MESSAGE_SIZE 1024
+#define SEPARATOR "|"
 
 typedef struct
 {
@@ -38,12 +38,13 @@ typedef struct
 // Function prototypes
 bool authenticateUser(int clientSockfd, char *role);
 bool processClientRequest(int clientSockfd, char *role);
-void *handleClient(void *clientSockfd_void);
 void addContact(Contact contact, int clientSockfd);
-void searchContact(char *contactName, int clientSockfd);
+void editContact(Contact editedContact);
+void displayAllContact(int socket);
 
 int sendMessage(int sockfd, const void *message, size_t length);
 char *receiveMessage(int sockfd);
+bool shouldContinue(int clientSockfd);
 
 int main()
 {
@@ -104,35 +105,25 @@ int main()
         else
         {
             printf("Server accepted the client...\n");
-            // Handle the client in a new thread
-            pthread_t client_thread;
-            pthread_create(&client_thread, NULL, handleClient, (void *)(long)clientSockfd);
+            // Authentication & Request Handling (Repeated)
+            do
+            {
+                char role[10];
+                if (authenticateUser(clientSockfd, role))
+                {
+                    printf("User authenticated with role: %s\n", role);
+                    while (true)
+                    {
+                        if (!processClientRequest(clientSockfd, role))
+                        {
+                            // If processClientRequest returns false, the client has finished sending requests
+                            break;
+                        }
+                    }
+                }
+            } while (shouldContinue(clientSockfd));
         }
     }
-}
-
-void *handleClient(void *clientSockfd_void)
-{
-    // Convert the clientSockfd_void to int
-    int clientSockfd = (int)(long)clientSockfd_void;
-
-    // Authentication & Request Handling (Repeated)
-    char role[10];
-    while (authenticateUser(clientSockfd, role))
-    {
-        printf("User authenticated with role: %s\n", role);
-        while (processClientRequest(clientSockfd, role))
-        {
-            // Just loop until the client breaks the connection
-        }
-        printf("Client disconnected...\n");
-    }
-
-    // Close the client socket
-    close(clientSockfd);
-
-    // Exit the thread
-    pthread_exit(0);
 }
 
 int sendMessage(int sockfd, const void *message, size_t length)
@@ -164,75 +155,55 @@ char *receiveMessage(int sockfd)
 
 bool authenticateUser(int clientSockfd, char *role)
 {
-    char response[20];
-    do
+    char *response = receiveMessage(clientSockfd);
+    Login loginCredentials;
+    memcpy(&loginCredentials, response, sizeof(Login));
+    free(response);
+
+    FILE *usersFile = fopen(USERS_FILE, "r");
+    if (usersFile == NULL)
     {
-        char *credentials = receiveMessage(clientSockfd);
+        perror("Error opening USERS_FILE");
+        return false;
+    }
 
-        if (credentials == NULL)
+    char line[100];
+    while (fgets(line, sizeof(line), usersFile) != NULL)
+    {
+        char storedUsername[20], storedPassword[20], storedRole[10];
+        if (sscanf(line, "%s %s %s", storedUsername, storedPassword, storedRole) == 3)
         {
-            return false;
-        }
-
-        Login loginCredentials;
-        memcpy(&loginCredentials, credentials, sizeof(Login));
-
-        FILE *usersFile = fopen(USERS_FILE, "r");
-        if (usersFile == NULL)
-        {
-            perror("Error opening USERS_FILE");
-            sprintf(response, "0");
-            if (sendMessage(clientSockfd, response, strlen(response)) == -1)
+            if (strcmp(storedUsername, loginCredentials.username) == 0 &&
+                strcmp(storedPassword, loginCredentials.password) == 0)
             {
-                continue;
-            }
-            continue;
-        }
+                strcpy(role, storedRole);
+                fclose(usersFile);
 
-        char line[100];
-        while (fgets(line, sizeof(line), usersFile) != NULL)
-        {
-            char storedUsername[20], storedPassword[20], storedRole[10];
-            if (sscanf(line, "%s %s %s", storedUsername, storedPassword, storedRole) == 3)
-            {
-                if (strcmp(storedUsername, loginCredentials.username) == 0 &&
-                    strcmp(storedPassword, loginCredentials.password) == 0)
-                {
-                    strcpy(role, storedRole);
-                    sprintf(response, "1%s", role);
-                    fclose(usersFile);
-                    if (sendMessage(clientSockfd, response, strlen(response)) == -1)
-                    {
-                        continue;
-                    }
-                    return true;
-                }
+                char response[20];
+                sprintf(response, "1%s", role);
+                write(clientSockfd, response, strlen(response));
+                return true;
             }
         }
+    }
 
-        fclose(usersFile);
-        sprintf(response, "0");
-        if (sendMessage(clientSockfd, response, strlen(response)) == -1)
-        {
-            continue;
-        }
-    } while (true);
+    fclose(usersFile);
+    write(clientSockfd, "0", 1);
+    return false;
 }
 
+bool shouldContinue(int clientSockfd)
+{
+    char *response = receiveMessage(clientSockfd);
+
+    return strcmp(response, "RETRY") == 0;
+}
 
 bool processClientRequest(int clientSockfd, char *role)
 {
     char *message = receiveMessage(clientSockfd);
-
-    if (message == NULL)
-    {
-        return false;
-    }
-    else
-    {
-        printf("Received message: %s\n", message);
-    }
-
+    printf("choice Message received \n");
+    if(strcmp(role,"admin") == 0 ){
     switch (message[0])
     {
     case '1': // Add contact
@@ -240,26 +211,37 @@ bool processClientRequest(int clientSockfd, char *role)
         Contact newContact;
         memcpy(&newContact, message + 1, sizeof(Contact));
         addContact(newContact, clientSockfd);
-        break;
+        return true;
     }
-    case '2': // search contact by name
-    {
-        char contactName[20];
-        strncpy(contactName, message + 1, strlen(message) - 1);
-        contactName[strlen(message) - 1] = '\0';
-        searchContact(contactName, clientSockfd);
-        break;
+    case '2':
+
+        return true;
+    case '3': 
+
+        return true;
+    case '4': 
+
+        return true;
+    case '5': 
+        displayAllContact(clientSockfd);
+        return true;    
+
+
     }
-    case '3':
-        break;
-    case '4':
-        break;
-    case '5':
-        break;
-    case '0':
-        return false;
+    return false;
     }
-    return true;
+    else{
+         switch (message[0]){
+          case '1': 
+          
+          return true;
+          case '2': 
+          displayAllContact(clientSockfd);
+          return true;
+
+         }
+          return false;
+    }
 }
 
 void addContact(Contact contact, int clientSockfd)
@@ -274,7 +256,7 @@ void addContact(Contact contact, int clientSockfd)
     }
 
     // Format Contact Data (Change as needed based on storage method)
-    fprintf(contactsFile, "%s#%s#%d#%s#%s#%s#%s\n",
+    fprintf(contactsFile, "%s,%s,%d,%s,%s,%s,%s\n",
             contact.nom, contact.prenom, contact.GSM, contact.email,
             contact.adr.rue, contact.adr.ville, contact.adr.pays);
 
@@ -289,75 +271,32 @@ void addContact(Contact contact, int clientSockfd)
     printf("Succes message sent\n");
 }
 
-void searchContact(char *contactName, int clientSockfd)
+void displayAllContact(int socket)
 {
-    // Read contacts from file
-    FILE *contactsFile = fopen(CONTACTS_FILE, "r");
-    if (contactsFile == NULL)
-    {
-        perror("Error opening contacts.txt");
-        sendMessage(clientSockfd, "0", 2);
-        printf("Error message sent\n");
-        return;
+   char line[MAX_MESSAGE_SIZE];
+FILE*contactsFile = fopen(CONTACTS_FILE,"r");
+ if (contactsFile == NULL)
+ {
+perror("Error opening contacts.txt");
+ return;
+  }
+  
+    char allLines[MAX_MESSAGE_SIZE * 10]; 
+    allLines[0] = '\0'; 
+
+    // Read lines from contacts file and append to the string
+    while (fgets(line, sizeof(line), contactsFile) != NULL) {
+        strcat(allLines, line);
+        strcat(allLines, SEPARATOR); // Use the separator character directly
     }
 
-    int found = 0;
-    Contact contact;
-    char buffer[100];
-    int lineNumber = 0;
-    while (fgets(buffer, sizeof(buffer), contactsFile) != NULL)
-    {
-        lineNumber++;
-        printf("Reading line %d\n", lineNumber);
+    // Remove the last separator (since it's not needed at the end)
+    allLines[strlen(allLines) - 1] = '\0'; // Remove the last character
 
-        // skip empty lines
-        if (buffer[0] == '\n')
-            continue;
+    // Send the entire string to the client
+    sendMessage(socket, allLines, strlen(allLines) + 1); // Include null terminator
 
-        char *firstName = strtok(buffer, "#");
-        if (firstName == NULL)
-        {
-            printf("Found empty line\n");
-            continue;
-        }
-
-        if (strcmp(firstName, contactName) == 0)
-        {
-            found = 1;
-
-            // Extract other fields
-            char *token = strtok(NULL, "#");
-            strncpy(contact.prenom, token, sizeof(contact.prenom));
-
-            token = strtok(NULL, "#");
-            sscanf(token, "%d", &contact.GSM);
-
-            token = strtok(NULL, "#");
-            strncpy(contact.email, token, sizeof(contact.email));
-
-            token = strtok(NULL, "#");
-            strncpy(contact.adr.rue, token, sizeof(contact.adr.rue));
-
-            token = strtok(NULL, "#");
-            strncpy(contact.adr.ville, token, sizeof(contact.adr.ville));
-
-            token = strtok(NULL, "#");
-            strncpy(contact.adr.pays, token, sizeof(contact.adr.pays));
-
-            strncpy(contact.nom, firstName, sizeof(contact.nom));
-        }
-    }
-
-    if (found)
-    {
-        sendMessage(clientSockfd, (const void *)&contact, sizeof(Contact));
-        printf("Contact details sent\n");
-    }
-    else
-    {
-        printf("Contact %s not found\n", contactName);
-        sendMessage(clientSockfd, "0", 2);
-    }
-
+    
     fclose(contactsFile);
+    printf("it works\n");
 }
