@@ -11,7 +11,7 @@
 
 #define CONTACTS_FILE "contacts.txt"
 #define USERS_FILE "users.txt"
-#define MAX_MESSAGE_SIZE 256
+#define MAX_MESSAGE_SIZE 1024
 
 typedef struct
 {
@@ -41,6 +41,8 @@ bool processClientRequest(int clientSockfd, char *role);
 void *handleClient(void *clientSockfd_void);
 void addContact(Contact contact, int clientSockfd);
 void searchContact(char *contactName, int clientSockfd);
+void editContact(char *contactName, int clientSockfd);
+void displayAllContacts(int clientSockfd);
 
 int sendMessage(int sockfd, const void *message, size_t length);
 char *receiveMessage(int sockfd);
@@ -219,7 +221,6 @@ bool authenticateUser(int clientSockfd, char *role)
     } while (true);
 }
 
-
 bool processClientRequest(int clientSockfd, char *role)
 {
     char *message = receiveMessage(clientSockfd);
@@ -251,10 +252,18 @@ bool processClientRequest(int clientSockfd, char *role)
         break;
     }
     case '3':
+    {
+        char contactName[20];
+        strncpy(contactName, message + 1, strlen(message) - 1);
+        contactName[strlen(message) - 1] = '\0';
+        editContact(contactName, clientSockfd);
         break;
+    }
     case '4':
         break;
     case '5':
+        // Display all contacts
+        displayAllContacts(clientSockfd);
         break;
     case '0':
         return false;
@@ -304,22 +313,12 @@ void searchContact(char *contactName, int clientSockfd)
     int found = 0;
     Contact contact;
     char buffer[100];
-    int lineNumber = 0;
     while (fgets(buffer, sizeof(buffer), contactsFile) != NULL)
     {
-        lineNumber++;
-        printf("Reading line %d\n", lineNumber);
-
-        // skip empty lines
         if (buffer[0] == '\n')
             continue;
 
         char *firstName = strtok(buffer, "#");
-        if (firstName == NULL)
-        {
-            printf("Found empty line\n");
-            continue;
-        }
 
         if (strcmp(firstName, contactName) == 0)
         {
@@ -351,7 +350,7 @@ void searchContact(char *contactName, int clientSockfd)
     if (found)
     {
         sendMessage(clientSockfd, (const void *)&contact, sizeof(Contact));
-        printf("Contact details sent\n");
+        printf("Founded Contact details sent\n");
     }
     else
     {
@@ -359,5 +358,120 @@ void searchContact(char *contactName, int clientSockfd)
         sendMessage(clientSockfd, "0", 2);
     }
 
+    fclose(contactsFile);
+}
+
+
+void updateContact(char *contactName, Contact *newContact, int clientSockfd)
+{
+    FILE *contactsFile = fopen(CONTACTS_FILE, "r");
+    if (contactsFile == NULL)
+    {
+        perror("Error opening contacts.txt");
+        sendMessage(clientSockfd, "0", 2);
+        printf("Error message sent\n");
+        return;
+    }
+
+    FILE *tempFile = fopen("temp.txt", "w");
+    if (tempFile == NULL)
+    {
+        perror("Error creating temporary file");
+        sendMessage(clientSockfd, "0", 2);
+        printf("Error message sent\n");
+        fclose(contactsFile);
+        return;
+    }
+
+    int found = 0;
+    Contact contact;
+    char buffer[100];
+    while (fgets(buffer, sizeof(buffer), contactsFile) != NULL)
+    {
+        if (buffer[0] == '\n')
+        {
+            continue;
+        }
+
+        char bufferCopy[100];
+        strcpy(bufferCopy, buffer);
+        char *firstName = strtok(bufferCopy, "#");
+
+        if (strcmp(firstName, contactName) == 0)
+        {
+            found = 1;
+            fprintf(tempFile, "%s#%s#%d#%s#%s#%s#%s\n",
+                    newContact->nom, newContact->prenom, newContact->GSM, newContact->email,
+                    newContact->adr.rue, newContact->adr.ville, newContact->adr.pays);
+        }
+        else
+        {
+            fprintf(tempFile, "%s", buffer);
+        }
+    }
+    fclose(contactsFile);
+    fclose(tempFile);
+
+    if (rename("temp.txt", CONTACTS_FILE) != 0)
+    {
+        perror("Error updating contacts file");
+        sendMessage(clientSockfd, "0", 2);
+        printf("Error message sent\n");
+        return;
+    }
+
+    if (found)
+    {
+        sendMessage(clientSockfd, "1", 2);
+        printf("Contact updated successfully\n");
+    }
+    else
+    {
+        printf("Contact %s not found\n", contactName);
+        sendMessage(clientSockfd, "0", 2);
+    }
+}
+
+void editContact(char *contactName, int clientSockfd)
+{
+    searchContact(contactName, clientSockfd);
+
+    char *responce = receiveMessage(clientSockfd);
+    Contact newContact;
+    memcpy(&newContact, responce + 1, sizeof(Contact));
+    // Update contact
+    updateContact(contactName, &newContact, clientSockfd);
+}
+
+//delete contact
+void deleteContact(int clientSockfd)
+{
+    printf("Deleting contact\n");
+}
+
+
+void displayAllContacts(int clientSockfd)
+{
+    FILE *contactsFile = fopen(CONTACTS_FILE, "r");
+    if (contactsFile == NULL)
+    {
+        perror("Error opening contacts.txt");
+        sendMessage(clientSockfd, "0", 2);
+        printf("Error message sent\n");
+        return;
+    }
+
+    // read and send all contacts separated by |
+    char line[100];
+    char message[MAX_MESSAGE_SIZE] = "1";
+
+    while (fgets(line, sizeof(line), contactsFile) != NULL)
+    {
+        // merge all contacts lines in one string separated by |
+        strcat(message, line);
+        strcat(message, "|");
+    }
+    // send the message
+    sendMessage(clientSockfd, message, strlen(message));
     fclose(contactsFile);
 }

@@ -11,7 +11,7 @@
 
 #define CONTACTS_FILE "contacts.txt"
 #define USERS_FILE "users.txt"
-#define MAX_MESSAGE_SIZE 256
+#define MAX_MESSAGE_SIZE 1024
 
 typedef struct
 {
@@ -100,7 +100,6 @@ int main()
                 displayAllContact(sockfd);
                 break;
             case 0:
-                // Send a message to the server to close the connection
                 sendMessage(sockfd, "0", 2);
                 close(sockfd);
                 break;
@@ -389,7 +388,69 @@ void searchContact(int sockfd)
 
 void editContact(int sockfd)
 {
-    printf("it works");
+    // Send edit contact request
+    char message[MAX_MESSAGE_SIZE];
+    char contactName[20];
+    printf("Enter contact name: ");
+    scanf("%s", contactName);
+    message[0] = '3';
+    memcpy(message + 1, contactName, strlen(contactName) + 1);
+    if (sendMessage(sockfd, message, strlen(contactName) + 1) != 0)
+    {
+        fprintf(stderr, "Error sending edit contact request.\n");
+    }
+    else
+    {
+        printf("Edit contact request sent.\n");
+    }
+    // Wait for the server to confirm that the contact was found
+    char *response = receiveMessage(sockfd);
+    if (response[0] == '0')
+    {
+        printf("Contact not found\n");
+        return;
+    }
+    // Parse the name and surname contact information
+    Contact contact;
+    memcpy(&contact, response, sizeof(Contact));
+    printf("\nContact found:\n");
+    printf("Name: %s %s\n", contact.nom, contact.prenom);
+
+
+    // Ask the user to enter the new contact information
+    Contact newContact;
+    printf("Enter new contact information: \n");
+    printf("Name: ");
+    scanf("%s", newContact.nom);
+    printf("Surname: ");
+    scanf("%s", newContact.prenom);
+    printf("GSM: +212");
+    scanf("%d", &newContact.GSM);
+    printf("Email: ");
+    scanf("%s", newContact.email);
+    printf("Address: ");
+    printf("   Street: " );
+    scanf("%s", newContact.adr.rue);
+    printf("   City: ");
+    scanf("%s", newContact.adr.ville);
+    printf("   Country: ");
+    scanf("%s", newContact.adr.pays);
+
+    // Send the updated contact information
+    char buffer[sizeof(Contact) + 1] = "1";
+    memcpy(buffer + 1, &newContact, sizeof(Contact));
+    sendMessage(sockfd, buffer, sizeof(buffer));
+
+    // Wait for the server to confirm that the contact was updated
+    response = receiveMessage(sockfd);
+    if (response[0] == '1')
+    {
+        printf("Contact updated successfully\n");
+    }
+    else
+    {
+        printf("Error updating contact\n");
+    }
 }
 
 void deleteContact(int sockfd)
@@ -399,5 +460,57 @@ void deleteContact(int sockfd)
 
 void displayAllContact(int sockfd)
 {
-    printf("it works");
+    // Send display all contact request
+    char message[MAX_MESSAGE_SIZE];
+    message[0] = '5';
+    if (sendMessage(sockfd, message, 1) != 0)
+    {
+        fprintf(stderr, "Error sending display all contacts request.\n");
+    }
+    else
+    {
+        printf("Display all contacts request sent.\n");
+    }
+    // Receive display all contact response
+    char *response = receiveMessage(sockfd);
+    printf("response Message received\n");
+    if (response == NULL)
+    {
+        fprintf(stderr, "Error receiving display all contacts response.\n");
+    }
+    else if (response[0] == '0')
+    {
+        printf("No contacts found.\n");
+    }
+    else
+    {
+        printf("\nContacts:\n");
+        // Parse and display contacts
+        char *token = strtok(response + 1, "|");
+        while (token != NULL)
+        {
+            // Parse token from %s#%s#%d#%s#%s#%s#%s| response format
+            Contact contact;
+            sscanf(token, "%[^#]#%[^#]#%d#%[^#]#%[^#]#%[^#]#%[^#]",
+                contact.nom,
+                contact.prenom,
+                &contact.GSM,
+                contact.email,
+                contact.adr.rue,
+                contact.adr.ville,
+                contact.adr.pays);
+
+            // Display the contact
+            printf("Name: %s %s\n", contact.nom, contact.prenom);
+            printf("GSM: +212%d\n", contact.GSM);
+            printf("Email: %s\n", contact.email);
+            printf("Address: \n");
+            printf("   Street: %s\n", contact.adr.rue);
+            printf("   City: %s\n", contact.adr.ville);
+            printf("   Country: %s\n", contact.adr.pays);
+
+            // Get the next token
+            token = strtok(NULL, "|");
+        }
+    }
 }
