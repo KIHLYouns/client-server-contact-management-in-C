@@ -51,10 +51,10 @@ char *receiveMessage(int sockfd);
 int main()
 {
     char role[10];
-    const char *serverIP = "127.0.0.1";
+    char *serverName = "localhost";
     int serverPort = 8080;
 
-    int sockfd = connectToServer(serverIP, serverPort);
+    int sockfd = connectToServer(serverName, serverPort);
     if (sockfd < 0)
     {
         fprintf(stderr, "Connection failed.\n");
@@ -138,8 +138,16 @@ char *receiveMessage(int sockfd)
     return buffer;
 }
 
-int connectToServer(const char *serverIP, int serverPort)
+int connectToServer(const char *serverName, int serverPort)
 {
+    struct hostent *server;
+
+    server = gethostbyname(serverName);
+    if (server == NULL) {
+        fprintf(stderr,"ERROR, no such host\n");
+        return -1;
+    }
+
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd == -1)
     {
@@ -150,14 +158,10 @@ int connectToServer(const char *serverIP, int serverPort)
     struct sockaddr_in serverAddress;
     memset(&serverAddress, 0, sizeof(serverAddress));
     serverAddress.sin_family = AF_INET;
+    bcopy((char *)server->h_addr, 
+         (char *)&serverAddress.sin_addr.s_addr,
+         server->h_length);
     serverAddress.sin_port = htons(serverPort);
-
-    if (inet_pton(AF_INET, serverIP, &serverAddress.sin_addr) <= 0)
-    {
-        perror("Invalid IP address");
-        close(sockfd);
-        return -1;
-    }
 
     if (connect(sockfd, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) != 0)
     {
@@ -166,7 +170,7 @@ int connectToServer(const char *serverIP, int serverPort)
         return -1;
     }
 
-    printf("Connected to server!\n");
+    printf("Connected to server [<->]\n");
     return sockfd;
 }
 
@@ -176,7 +180,7 @@ int login(int sockfd, char *role)
 
     for (int attempt = 0; attempt < 3; attempt++)
     {
-        printf("Enter username: ");
+        printf("\nEnter username: ");
         fgets(loginCredentials.username, sizeof(loginCredentials.username), stdin);
         loginCredentials.username[strcspn(loginCredentials.username, "\n")] = 0;
         printf("Enter password: ");
@@ -188,10 +192,10 @@ int login(int sockfd, char *role)
             fprintf(stderr, "Error sending login credentials.\n");
             continue;
         }
-        printf("\nloginCredentials Sent\n");
+        printf("\nloginCredentials Sent [->]\n");
 
         char *response = receiveMessage(sockfd);
-        printf("loginCredentials Response received\n");
+        printf("[->] loginCredentials Response received\n");
 
         if (response == NULL)
         {
@@ -202,7 +206,7 @@ int login(int sockfd, char *role)
 
         if (response[0] == '1')
         {
-            printf("Login successful!\n");
+            printf("\nLogin successful!\n");
 
             strncpy(role, response + 1, strlen(response) - 1);
             role[strlen(response) - 1] = '\0';
@@ -238,7 +242,7 @@ int login(int sockfd, char *role)
 
 void displayMenu(const char *role)
 {
-    printf("\n------- ROLE : %s -------\n", role);
+    printf("\n------- ROLE: %s -------\n", role);
     printf("\n----- CONTACT MANAGER -----\n");
     if (strcmp(role, "admin") == 0)
     {
@@ -318,10 +322,10 @@ void addContact(int sockfd)
     {
         fprintf(stderr, "Error sending add contact request.\n");
     }
-    printf("newContact Message sent\n");
+    printf("\nnewContact Request sent [->] \n");
 
     char *response = receiveMessage(sockfd);
-    printf("response Message received\n");
+    printf("[->] response Message received\n");
 
     if (response == NULL)
     {
@@ -330,7 +334,7 @@ void addContact(int sockfd)
 
     else if (strcmp(response, "1") == 0)
     {
-        printf("Contact added successfully.\n");
+        printf("\nContact added successfully.\n");
     }
 
     else
@@ -344,37 +348,45 @@ void addContact(int sockfd)
 void searchContact(int sockfd)
 {
     char message[MAX_MESSAGE_SIZE];
-    char contactName[20];
-    printf("Enter contact name: ");
-    scanf("%s", contactName);
+    char firstName[20], lastName[20];
+    printf("Enter first name: ");
+    scanf("%s", firstName);
+    printf("Enter last name: ");
+    scanf("%s", lastName);
+
+    // Construct the full name
+    char fullName[40];
+    strcpy(fullName, firstName);
+    strcat(fullName, " ");
+    strcat(fullName, lastName);
+
     message[0] = '2';
-    memcpy(message + 1, contactName, strlen(contactName) + 1);
-    if (sendMessage(sockfd, message, strlen(contactName) + 1) != 0)
+    memcpy(message + 1, fullName, strlen(fullName) + 1);
+    if (sendMessage(sockfd, message, strlen(fullName) + 2) != 0)
     {
         fprintf(stderr, "Error sending search contact request.\n");
     }
     else
     {
-        printf("Search contact request sent.\n");
+        printf("\nsearchContact Request sent [->]\n");
     }
 
     char *response = receiveMessage(sockfd);
-    printf("response Message received\n");
+    printf("[->] response Message received\n");
     if (response == NULL)
     {
         fprintf(stderr, "Error receiving authentication response.\n");
     }
     else if (response[0] == '0')
     {
-        printf("Contact not found.\n");
+        printf("\nContact not found.\n");
     }
-
     else
     {
         Contact contact;
         memcpy(&contact, response, sizeof(Contact));
         printf("\nContact found:\n");
-        printf("Name: %s %s\n", contact.nom, contact.prenom);
+        printf("\nName: %s %s\n", contact.nom, contact.prenom);
         printf("GSM: +212%d\n", contact.GSM);
         printf("Email: %s\n", contact.email);
         printf("Address: \n");
@@ -388,38 +400,51 @@ void searchContact(int sockfd)
 
 void editContact(int sockfd)
 {
-    // Send edit contact request
     char message[MAX_MESSAGE_SIZE];
-    char contactName[20];
-    printf("Enter contact name: ");
-    scanf("%s", contactName);
+    char firstName[20], lastName[20];
+    printf("Enter first name: ");
+    scanf("%s", firstName);
+    printf("Enter last name: ");
+    scanf("%s", lastName);
+
+    // Construct the full name
+    char fullName[40];
+    strcpy(fullName, firstName);
+    strcat(fullName, " ");
+    strcat(fullName, lastName);
+
     message[0] = '3';
-    memcpy(message + 1, contactName, strlen(contactName) + 1);
-    if (sendMessage(sockfd, message, strlen(contactName) + 1) != 0)
+    memcpy(message + 1, fullName, strlen(fullName) + 1);
+    if (sendMessage(sockfd, message, strlen(fullName) + 2) != 0)
     {
         fprintf(stderr, "Error sending edit contact request.\n");
     }
     else
     {
-        printf("Edit contact request sent.\n");
+        printf("\neditContact Request sent [->]\n");
     }
     // Wait for the server to confirm that the contact was found
     char *response = receiveMessage(sockfd);
+    printf("[->] response Message received\n");
     if (response[0] == '0')
     {
-        printf("Contact not found\n");
+        printf("\nContact not found\n");
         return;
     }
     // Parse the name and surname contact information
     Contact contact;
     memcpy(&contact, response, sizeof(Contact));
     printf("\nContact found:\n");
-    printf("Name: %s %s\n", contact.nom, contact.prenom);
-
-
+    printf("\nName: %s %s\n", contact.nom, contact.prenom);
+    printf("GSM: +212%d\n", contact.GSM);
+    printf("Email: %s\n", contact.email);
+    printf("Address: \n");
+    printf("   Street: %s\n", contact.adr.rue);
+    printf("   City: %s\n", contact.adr.ville);
+    printf("   Country: %s\n", contact.adr.pays);
     // Ask the user to enter the new contact information
     Contact newContact;
-    printf("Enter new contact information: \n");
+    printf("Enter newContact information: \n");
     printf("Name: ");
     scanf("%s", newContact.nom);
     printf("Surname: ");
@@ -428,7 +453,7 @@ void editContact(int sockfd)
     scanf("%d", &newContact.GSM);
     printf("Email: ");
     scanf("%s", newContact.email);
-    printf("Address: ");
+    printf("Address: \n");
     printf("   Street: " );
     scanf("%s", newContact.adr.rue);
     printf("   City: ");
@@ -440,12 +465,14 @@ void editContact(int sockfd)
     char buffer[sizeof(Contact) + 1] = "1";
     memcpy(buffer + 1, &newContact, sizeof(Contact));
     sendMessage(sockfd, buffer, sizeof(buffer));
+    printf("\nupdateContact Request sent [->]\n");
 
     // Wait for the server to confirm that the contact was updated
     response = receiveMessage(sockfd);
+    printf("[->] response Message received\n");
     if (response[0] == '1')
     {
-        printf("Contact updated successfully\n");
+        printf("\nContact updated successfully\n");
     }
     else
     {
@@ -469,22 +496,22 @@ void displayAllContact(int sockfd)
     }
     else
     {
-        printf("Display all contacts request sent.\n");
+        printf("displayAllContacts Request sent [->]\n");
     }
     // Receive display all contact response
     char *response = receiveMessage(sockfd);
-    printf("response Message received\n");
+    printf("[->] response Message received\n");
     if (response == NULL)
     {
         fprintf(stderr, "Error receiving display all contacts response.\n");
     }
     else if (response[0] == '0')
     {
-        printf("No contacts found.\n");
+        printf("\nNo contacts found.\n");
     }
     else
     {
-        printf("\nContacts:\n");
+        printf("\n----- Contacts -----\n\n");
         // Parse and display contacts
         char *token = strtok(response + 1, "|");
         while (token != NULL)

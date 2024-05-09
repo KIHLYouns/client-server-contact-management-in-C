@@ -8,6 +8,7 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <pthread.h>
+#include <time.h>
 
 #define CONTACTS_FILE "contacts.txt"
 #define USERS_FILE "users.txt"
@@ -64,7 +65,7 @@ int main()
     // 2. Prepare the server address structure
     struct sockaddr_in serverAddress;
     serverAddress.sin_family = AF_INET;
-    serverAddress.sin_addr.s_addr = inet_addr("127.0.0.1");
+    serverAddress.sin_addr.s_addr = htonl(INADDR_ANY);
     serverAddress.sin_port = htons(8080);
 
     // 3. Bind the socket
@@ -122,7 +123,6 @@ void *handleClient(void *clientSockfd_void)
     char role[10];
     while (authenticateUser(clientSockfd, role))
     {
-        printf("User authenticated with role: %s\n", role);
         while (processClientRequest(clientSockfd, role))
         {
             // Just loop until the client breaks the connection
@@ -202,6 +202,7 @@ bool authenticateUser(int clientSockfd, char *role)
                 {
                     strcpy(role, storedRole);
                     sprintf(response, "1%s", role);
+                    printf("[%s = %s] Authenticated by client [%d]\n", storedUsername, role, clientSockfd);
                     fclose(usersFile);
                     if (sendMessage(clientSockfd, response, strlen(response)) == -1)
                     {
@@ -231,7 +232,16 @@ bool processClientRequest(int clientSockfd, char *role)
     }
     else
     {
-        printf("Received message: %s\n", message);
+        time_t rawtime;
+        struct tm * timeinfo;
+        char buffer[80];
+
+        time(&rawtime);
+        timeinfo = localtime(&rawtime);
+
+        strftime(buffer, sizeof(buffer), "%m-%d %H:%M:%S", timeinfo);
+        printf("[%d] ", clientSockfd);
+        printf("[Time: %s Client: %d Received message: %s]\n", buffer, clientSockfd, message);
     }
 
     switch (message[0])
@@ -273,6 +283,8 @@ bool processClientRequest(int clientSockfd, char *role)
 
 void addContact(Contact contact, int clientSockfd)
 {
+    printf("[%d] ", clientSockfd);
+    printf("Adding contact: %s %s\n", contact.nom, contact.prenom);
     FILE *contactsFile = fopen(CONTACTS_FILE, "a"); // Open in append mode
     if (contactsFile == NULL)
     {
@@ -286,21 +298,20 @@ void addContact(Contact contact, int clientSockfd)
     fprintf(contactsFile, "%s#%s#%d#%s#%s#%s#%s\n",
             contact.nom, contact.prenom, contact.GSM, contact.email,
             contact.adr.rue, contact.adr.ville, contact.adr.pays);
-
     fclose(contactsFile);
-
-    printf("Contact added successfully:\n");
+    printf("[%d] ", clientSockfd);
+    printf("Contact added\n");
+    printf("[%d] ", clientSockfd);
     printf("%s#%s#%d#%s#%s#%s#%s\n",
            contact.nom, contact.prenom, contact.GSM, contact.email,
            contact.adr.rue, contact.adr.ville, contact.adr.pays);
 
     sendMessage(clientSockfd, "1", 2);
-    printf("Succes message sent\n");
 }
 
 void searchContact(char *contactName, int clientSockfd)
 {
-    // Read contacts from file
+    printf("Searching for contact: %s\n", contactName);
     FILE *contactsFile = fopen(CONTACTS_FILE, "r");
     if (contactsFile == NULL)
     {
@@ -319,16 +330,20 @@ void searchContact(char *contactName, int clientSockfd)
             continue;
 
         char *firstName = strtok(buffer, "#");
+        char *lastName = strtok(NULL, "#");
 
-        if (strcmp(firstName, contactName) == 0)
+        // Construct the full name from the first and last name
+        char contactFullName[40];
+        strcpy(contactFullName, firstName);
+        strcat(contactFullName, " ");
+        strcat(contactFullName, lastName);
+
+        if (strcmp(contactFullName, contactName) == 0)
         {
             found = 1;
 
             // Extract other fields
             char *token = strtok(NULL, "#");
-            strncpy(contact.prenom, token, sizeof(contact.prenom));
-
-            token = strtok(NULL, "#");
             sscanf(token, "%d", &contact.GSM);
 
             token = strtok(NULL, "#");
@@ -344,6 +359,7 @@ void searchContact(char *contactName, int clientSockfd)
             strncpy(contact.adr.pays, token, sizeof(contact.adr.pays));
 
             strncpy(contact.nom, firstName, sizeof(contact.nom));
+            strncpy(contact.prenom, lastName, sizeof(contact.prenom));
         }
     }
 
@@ -361,9 +377,9 @@ void searchContact(char *contactName, int clientSockfd)
     fclose(contactsFile);
 }
 
-
 void updateContact(char *contactName, Contact *newContact, int clientSockfd)
 {
+    printf("Updating contact: %s\n", contactName);
     FILE *contactsFile = fopen(CONTACTS_FILE, "r");
     if (contactsFile == NULL)
     {
@@ -396,8 +412,15 @@ void updateContact(char *contactName, Contact *newContact, int clientSockfd)
         char bufferCopy[100];
         strcpy(bufferCopy, buffer);
         char *firstName = strtok(bufferCopy, "#");
+        char *lastName = strtok(NULL, "#");
 
-        if (strcmp(firstName, contactName) == 0)
+        // Construct the full name from the first and last name
+        char contactFullName[40];
+        strcpy(contactFullName, firstName);
+        strcat(contactFullName, " ");
+        strcat(contactFullName, lastName);
+
+        if (strcmp(contactFullName, contactName) == 0)
         {
             found = 1;
             fprintf(tempFile, "%s#%s#%d#%s#%s#%s#%s\n",
@@ -434,6 +457,8 @@ void updateContact(char *contactName, Contact *newContact, int clientSockfd)
 
 void editContact(char *contactName, int clientSockfd)
 {
+    
+    printf("Editing contact: %s\n", contactName);
     searchContact(contactName, clientSockfd);
 
     char *responce = receiveMessage(clientSockfd);
@@ -443,12 +468,10 @@ void editContact(char *contactName, int clientSockfd)
     updateContact(contactName, &newContact, clientSockfd);
 }
 
-//delete contact
 void deleteContact(int clientSockfd)
 {
     printf("Deleting contact\n");
 }
-
 
 void displayAllContacts(int clientSockfd)
 {
