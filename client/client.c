@@ -143,8 +143,9 @@ int connectToServer(const char *serverName, int serverPort)
     struct hostent *server;
 
     server = gethostbyname(serverName);
-    if (server == NULL) {
-        fprintf(stderr,"ERROR, no such host\n");
+    if (server == NULL)
+    {
+        fprintf(stderr, "ERROR, no such host\n");
         return -1;
     }
 
@@ -158,9 +159,9 @@ int connectToServer(const char *serverName, int serverPort)
     struct sockaddr_in serverAddress;
     memset(&serverAddress, 0, sizeof(serverAddress));
     serverAddress.sin_family = AF_INET;
-    bcopy((char *)server->h_addr, 
-         (char *)&serverAddress.sin_addr.s_addr,
-         server->h_length);
+    bcopy((char *)server->h_addr,
+          (char *)&serverAddress.sin_addr.s_addr,
+          server->h_length);
     serverAddress.sin_port = htons(serverPort);
 
     if (connect(sockfd, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) != 0)
@@ -454,7 +455,7 @@ void editContact(int sockfd)
     printf("Email: ");
     scanf("%s", newContact.email);
     printf("Address: \n");
-    printf("   Street: " );
+    printf("   Street: ");
     scanf("%s", newContact.adr.rue);
     printf("   City: ");
     scanf("%s", newContact.adr.ville);
@@ -482,7 +483,41 @@ void editContact(int sockfd)
 
 void deleteContact(int sockfd)
 {
-    printf("it works");
+    char message[MAX_MESSAGE_SIZE];
+    char firstName[20], lastName[20];
+    printf("Enter first name: ");
+    scanf("%s", firstName);
+    printf("Enter last name: ");
+    scanf("%s", lastName);
+
+    // Construct the full name
+    char fullName[40];
+    strcpy(fullName, firstName);
+    strcat(fullName, " ");
+    strcat(fullName, lastName);
+
+    message[0] = '4';
+    memcpy(message + 1, fullName, strlen(fullName) + 1);
+    if (sendMessage(sockfd, message, strlen(fullName) + 2) != 0)
+    {
+        fprintf(stderr, "Error sending delete contact request.\n");
+    }
+    else
+    {
+        printf("\ndeleteContact Request sent [->]\n");
+    }
+    // Wait for the server to confirm that the contact was found
+    char *response = receiveMessage(sockfd);
+    printf("[->] response Message received\n");
+    if (response[0] == '1')
+    {
+        printf("\nContact %s deleted successfully.\n", fullName);
+
+    }
+    else
+    {
+        printf("\nFailed to delete contact %s\n", fullName);
+    }
 }
 
 void displayAllContact(int sockfd)
@@ -519,13 +554,13 @@ void displayAllContact(int sockfd)
             // Parse token from %s#%s#%d#%s#%s#%s#%s| response format
             Contact contact;
             sscanf(token, "%[^#]#%[^#]#%d#%[^#]#%[^#]#%[^#]#%[^#]",
-                contact.nom,
-                contact.prenom,
-                &contact.GSM,
-                contact.email,
-                contact.adr.rue,
-                contact.adr.ville,
-                contact.adr.pays);
+                   contact.nom,
+                   contact.prenom,
+                   &contact.GSM,
+                   contact.email,
+                   contact.adr.rue,
+                   contact.adr.ville,
+                   contact.adr.pays);
 
             // Display the contact
             printf("Name: %s %s\n", contact.nom, contact.prenom);

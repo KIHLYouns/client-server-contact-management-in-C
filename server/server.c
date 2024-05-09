@@ -43,6 +43,7 @@ void *handleClient(void *clientSockfd_void);
 void addContact(Contact contact, int clientSockfd);
 void searchContact(char *contactName, int clientSockfd);
 void editContact(char *contactName, int clientSockfd);
+void deleteContact(char *contactName, int clientSockfd);
 void displayAllContacts(int clientSockfd);
 
 int sendMessage(int sockfd, const void *message, size_t length);
@@ -241,7 +242,7 @@ bool processClientRequest(int clientSockfd, char *role)
 
         strftime(buffer, sizeof(buffer), "%m-%d %H:%M:%S", timeinfo);
         printf("[%d] ", clientSockfd);
-        printf("[Time: %s Client: %d Received message: %s]\n", buffer, clientSockfd, message);
+        printf("[Time: %s Received message: %s from Client: %d]\n", buffer, message, clientSockfd);
     }
 
     switch (message[0])
@@ -270,6 +271,12 @@ bool processClientRequest(int clientSockfd, char *role)
         break;
     }
     case '4':
+    {
+        char contactName[20];
+        strncpy(contactName, message + 1, strlen(message) - 1);
+        contactName[strlen(message) - 1] = '\0';
+        deleteContact(contactName, clientSockfd);
+    }    
         break;
     case '5':
         // Display all contacts
@@ -283,7 +290,7 @@ bool processClientRequest(int clientSockfd, char *role)
 
 void addContact(Contact contact, int clientSockfd)
 {
-    printf("[%d] ", clientSockfd);
+    printf("\t[%d] ", clientSockfd);
     printf("Adding contact: %s %s\n", contact.nom, contact.prenom);
     FILE *contactsFile = fopen(CONTACTS_FILE, "a"); // Open in append mode
     if (contactsFile == NULL)
@@ -299,9 +306,8 @@ void addContact(Contact contact, int clientSockfd)
             contact.nom, contact.prenom, contact.GSM, contact.email,
             contact.adr.rue, contact.adr.ville, contact.adr.pays);
     fclose(contactsFile);
-    printf("[%d] ", clientSockfd);
-    printf("Contact added\n");
-    printf("[%d] ", clientSockfd);
+    printf("\t[%d] ", clientSockfd);
+    printf("Contact added: ");
     printf("%s#%s#%d#%s#%s#%s#%s\n",
            contact.nom, contact.prenom, contact.GSM, contact.email,
            contact.adr.rue, contact.adr.ville, contact.adr.pays);
@@ -311,6 +317,7 @@ void addContact(Contact contact, int clientSockfd)
 
 void searchContact(char *contactName, int clientSockfd)
 {
+    printf("\t[%d] ", clientSockfd);
     printf("Searching for contact: %s\n", contactName);
     FILE *contactsFile = fopen(CONTACTS_FILE, "r");
     if (contactsFile == NULL)
@@ -366,10 +373,12 @@ void searchContact(char *contactName, int clientSockfd)
     if (found)
     {
         sendMessage(clientSockfd, (const void *)&contact, sizeof(Contact));
-        printf("Founded Contact details sent\n");
+        printf("\t[%d] ", clientSockfd);
+        printf("Contact %s found\n", contactName);
     }
     else
     {
+        printf("\t[%d] ", clientSockfd);
         printf("Contact %s not found\n", contactName);
         sendMessage(clientSockfd, "0", 2);
     }
@@ -379,6 +388,7 @@ void searchContact(char *contactName, int clientSockfd)
 
 void updateContact(char *contactName, Contact *newContact, int clientSockfd)
 {
+    printf("\t[%d] ", clientSockfd);
     printf("Updating contact: %s\n", contactName);
     FILE *contactsFile = fopen(CONTACTS_FILE, "r");
     if (contactsFile == NULL)
@@ -446,10 +456,15 @@ void updateContact(char *contactName, Contact *newContact, int clientSockfd)
     if (found)
     {
         sendMessage(clientSockfd, "1", 2);
-        printf("Contact updated successfully\n");
+        printf("\t[%d] ", clientSockfd);
+        printf("Contact updated: ");
+        printf("%s#%s#%d#%s#%s#%s#%s\n",
+                newContact->nom, newContact->prenom, newContact->GSM, newContact->email,
+                newContact->adr.rue, newContact->adr.ville, newContact->adr.pays);
     }
     else
     {
+        printf("\t[%d] ", clientSockfd);
         printf("Contact %s not found\n", contactName);
         sendMessage(clientSockfd, "0", 2);
     }
@@ -457,7 +472,7 @@ void updateContact(char *contactName, Contact *newContact, int clientSockfd)
 
 void editContact(char *contactName, int clientSockfd)
 {
-    
+    printf("\t[%d] ", clientSockfd);
     printf("Editing contact: %s\n", contactName);
     searchContact(contactName, clientSockfd);
 
@@ -468,13 +483,90 @@ void editContact(char *contactName, int clientSockfd)
     updateContact(contactName, &newContact, clientSockfd);
 }
 
-void deleteContact(int clientSockfd)
+void deleteContact(char *contactName, int clientSockfd)
 {
-    printf("Deleting contact\n");
+    printf("\t[%d] ", clientSockfd);
+    printf("Deleting contact : %s\n", contactName);
+
+    FILE *contactsFile = fopen(CONTACTS_FILE, "r");
+    if (contactsFile == NULL)
+    {
+        perror("Error opening contacts.txt");
+        sendMessage(clientSockfd, "0", 2);
+        printf("Error message sent\n");
+        return;
+    }
+
+    FILE *tempFile = fopen("temp.txt", "w");
+    if (tempFile == NULL)
+    {
+        perror("Error creating temporary file");
+        sendMessage(clientSockfd, "0", 2);
+        printf("Error message sent\n");
+        fclose(contactsFile);
+        return;
+    }
+
+    int found = 0;
+    char buffer[100];
+    while (fgets(buffer, sizeof(buffer), contactsFile) != NULL)
+    {
+        if (buffer[0] == '\n')
+        {
+            continue;
+        }
+
+        char bufferCopy[100];
+        strcpy(bufferCopy, buffer);
+        char *firstName = strtok(bufferCopy, "#");
+        char *lastName = strtok(NULL, "#");
+
+        // Construct the full name from the first and last name
+        char contactFullName[40];
+        strcpy(contactFullName, firstName);
+        strcat(contactFullName, " ");
+        strcat(contactFullName, lastName);
+
+        if (strcmp(contactFullName, contactName) != 0)
+        {
+            fprintf(tempFile, "%s", buffer);
+        }
+        else
+        {
+            found = 1;
+        }
+    }
+
+    fclose(contactsFile);
+    fclose(tempFile);
+
+    if (found)
+    {
+        if (rename("temp.txt", CONTACTS_FILE) != 0)
+        {
+            perror("Error renaming temporary file");
+            sendMessage(clientSockfd, "0", 2);
+            printf("Error message sent\n");
+        }
+        else
+        {
+            sendMessage(clientSockfd, "1", 2);
+            printf("\t[%d] ", clientSockfd);
+            printf("Contact %s deleted\n", contactName);
+        }
+    }
+    else
+    {
+        printf("\t[%d] ", clientSockfd);
+        printf("Contact %s not found\n", contactName);
+        sendMessage(clientSockfd, "0", 2);
+    }
 }
 
 void displayAllContacts(int clientSockfd)
 {
+    printf("\t[%d] ", clientSockfd);
+    printf("Displaying all contacts\n");
     FILE *contactsFile = fopen(CONTACTS_FILE, "r");
     if (contactsFile == NULL)
     {
