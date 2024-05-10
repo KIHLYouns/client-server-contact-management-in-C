@@ -48,7 +48,7 @@ char *receiveMessage(int sockfd);
 int main()
 {
     char role[10];
-    char *serverName = "localhost";
+    char *serverName = "127.0.0.1";
     int serverPort = 8080;
     int sockfd = connectToServer(serverName, serverPort);
     if (sockfd < 0)
@@ -301,7 +301,7 @@ void addContact(int sockfd)
     }
     else
     {
-        fprintf(stderr, "Failed to add contact.\n");
+        fprintf(stderr, "\nFailed to add contact.\n");
     }
     free(response);
 }

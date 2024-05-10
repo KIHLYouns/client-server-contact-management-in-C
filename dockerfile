@@ -8,6 +8,3 @@ EXPOSE 8080
 
 VOLUME ["/app"]
 
-
-
-
